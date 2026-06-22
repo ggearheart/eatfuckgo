@@ -40,8 +40,8 @@ html,body{min-height:100vh;background:#fef8ec;color:#1a0a00;font-family:'Segoe U
 /* ── LAYOUT ── */
 .main-layout{display:flex;min-height:calc(100vh - 108px);}
 .board-wrap{flex:1;min-width:0;overflow:auto;padding:20px;display:flex;align-items:flex-start;justify-content:center;background:repeating-linear-gradient(45deg,#f5edda,#f5edda 10px,#f0e8d0 10px,#f0e8d0 20px);}
-.board-frame{background:var(--cream);border:4px solid var(--ink);border-radius:8px;box-shadow:6px 6px 0 var(--ink);padding:12px;display:inline-block;}
-.board-title{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:var(--ink);text-align:center;padding-bottom:8px;border-bottom:2.5px solid var(--ink);margin-bottom:10px;}
+.board-frame{background:#12100c;border:4px solid var(--ink);border-radius:8px;box-shadow:6px 6px 0 var(--ink);padding:14px;display:inline-block;}
+.board-title{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:#fef8ec;text-align:center;padding-bottom:8px;border-bottom:2.5px solid #4a4030;margin-bottom:10px;}
 #board-svg{display:block;}
 .hex-group{cursor:pointer;}
 .hex-group polygon{transition:filter .1s;}
@@ -121,10 +121,21 @@ html,body{min-height:100vh;background:#fef8ec;color:#1a0a00;font-family:'Segoe U
   <button class="tbtn" onclick="clearFilter()">Clear Filter</button>
 </div>
 
+<div class="toolbar" style="background:#1a140c;border-color:#000;">
+  <span class="tool-label" style="color:#ffd21a;">🎲 Turn:</span>
+  <button class="tbtn" style="background:#7b4fa0;border-color:#000;color:#fff;" onclick="rollMove()">① Split → ② Roll Movement</button>
+  <span id="move-readout" style="font-size:11px;font-weight:800;color:#fef8ec;min-width:230px;">Split a stack if you wish, then roll to move.</span>
+  <div class="sep" style="background:#fff;opacity:.3;"></div>
+  <span class="tool-label" style="color:#ffd21a;">Key:</span>
+  <span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;color:#ffd21a;">▸▸▸ Normal</span>
+  <span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;color:#ff7a6a;">■ Required</span>
+  <span style="display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;color:#6ec8f5;">◗ Optional</span>
+</div>
+
 <div class="main-layout">
   <div class="board-wrap">
     <div class="board-frame">
-      <div class="board-title">🌍 Evolutionary Terrain Map — 44 Hexes · 4 GM Labs</div>
+      <div class="board-title">🌍 Evolutionary Terrain Map — 37 Hexes · 4 per Edge · Titan Movement</div>
       <svg id="board-svg"></svg>
     </div>
   </div>
@@ -141,21 +152,75 @@ html,body{min-height:100vh;background:#fef8ec;color:#1a0a00;font-family:'Segoe U
 
 <script>
 // ═══════════════════════════════════════════
-// BOARD LAYOUT — 7×8 oval, 44 hexes, symmetrical
-// V=Volcanic  P=Swamp   S=Shallow Sea  O=Open Ocean
-// I=Ice Age   A=Savannah  F=Forest     D=Desert
-// C=Cave      G=GM Lab    null=empty
+// BOARD LAYOUT — Titan-style flat-top hexagon
+// 9 hexes per edge (cube radius N=8 → 217 hexes)
+// Terrains assigned by hash; GM Labs at center + 6 sector towers
+// V=Volcanic P=Swamp S=Shallow O=Ocean I=Ice A=Savannah
+// F=Forest D=Desert C=Cave G=GM Lab
 // ═══════════════════════════════════════════
-const BOARD = [
-  //   0     1     2     3     4     5     6     7
-  [null, null,  'S',  'V',  'P',  'A', null, null],  // row 0
-  [null,  'I',  'F',  'O',  'G',  'C',  'D', null],  // row 1 (odd)
-  [ 'P',  'A',  'D',  'I',  'V',  'F',  'S',  'O'],  // row 2
-  [ 'P',  'C',  'G',  'F',  'A',  'G',  'I',  'D'],  // row 3 (odd)
-  [ 'O',  'V',  'I',  'A',  'D',  'S',  'P',  'C'],  // row 4
-  [null,  'D',  'C',  'G',  'O',  'A',  'F', null],  // row 5 (odd)
-  [null, null,  'F',  'S',  'I',  'V', null, null],  // row 6
-];
+const N = 3;                       // rings → edge length = N+1 = 4
+const TERRAIN_CODES = ['V','P','S','O','I','A','F','D','C'];
+
+// Pointy-top axial neighbour directions, ordered clockwise from East.
+const DIRS = [[1,0],[0,1],[-1,1],[-1,0],[0,-1],[1,-1]];
+const TOWER_KEYS = new Set(['0,0']);          // center GM Lab
+
+// deterministic hash → terrain code
+function hashCode(q, r) {
+  let h = ((q * 73856093) ^ (r * 19349663) ^ ((q + r) * 83492791)) >>> 0;
+  return TERRAIN_CODES[h % TERRAIN_CODES.length];
+}
+function cubeDist(q, r) { return (Math.abs(q) + Math.abs(r) + Math.abs(-q - r)) / 2; }
+
+// Generate all cells inside the big hexagon
+const CELLS = [];
+const CELL_KEYS = new Set();
+for (let q = -N; q <= N; q++) {
+  for (let r = -N; r <= N; r++) {
+    if (Math.abs(-q - r) > N) continue;       // outside hexagon
+    const key = `${q},${r}`;
+    const code = TOWER_KEYS.has(key) ? 'G' : hashCode(q, r);
+    CELLS.push({ q, r, code });
+    CELL_KEYS.add(key);
+  }
+}
+
+// ═══════════════════════════════════════════
+// MOVEMENT GRAPH — Titan-style edge markers
+//   'arrow'   triple chevrons  = NORMAL flow (clockwise outer ring)
+//   'block'   square bar       = REQUIRED direction (forced branch)
+//   'rounded' arch             = OPTIONAL direction (may divert)
+// Each marker sits on the shared edge from (q,r) toward (tq,tr).
+// ═══════════════════════════════════════════
+const MOVES = [];
+
+// 1) NORMAL flow: clockwise around the outer ring (distance === N)
+const ring = CELLS.filter(c => cubeDist(c.q, c.r) === N)
+  .map(c => { const [x,y] = [c.q, c.r]; return c; })
+  .sort((a, b) => {
+    const aa = Math.atan2(a.r + a.q/2, a.q + a.r/2);   // rough angular sort
+    const bb = Math.atan2(b.r + b.q/2, b.q + b.r/2);
+    return aa - bb;
+  });
+for (let i = 0; i < ring.length; i++) {
+  const a = ring[i], b = ring[(i + 1) % ring.length];
+  if (cubeDist(a.q - b.q, a.r - b.r) === 1)          // only if truly adjacent
+    MOVES.push({ q:a.q, r:a.r, tq:b.q, tr:b.r, type:'arrow' });
+}
+
+// 2) Six spokes inward along each axial direction: corner→center
+//    OPTIONAL dive at the corner (rounded), then REQUIRED the rest (block)
+DIRS.forEach(([dq, dr]) => {
+  for (let k = N; k >= 1; k--) {
+    const fromKey = `${dq*k},${dr*k}`;
+    const toKey   = `${dq*(k-1)},${dr*(k-1)}`;
+    if (!CELL_KEYS.has(fromKey) || !CELL_KEYS.has(toKey)) continue;
+    MOVES.push({
+      q:dq*k, r:dr*k, tq:dq*(k-1), tr:dr*(k-1),
+      type: k === N ? 'rounded' : 'block'
+    });
+  }
+});
 
 // ═══════════════════════════════════════════
 // TERRAIN DATA — comic palette
@@ -243,26 +308,26 @@ const T = {
 };
 
 // ═══════════════════════════════════════════
-// HEX GEOMETRY — pointy-top
+// HEX GEOMETRY — pointy-top (vertices top/bottom)
+// → big hexagon has flat top edge, points left/right (Titan silhouette)
 // ═══════════════════════════════════════════
-const R   = 42;
-const W   = Math.sqrt(3) * R;   // ≈72.7
-const DY  = 1.5 * R;            // 63
-const ODD = W / 2;
-const PAD = R + 8;
+const R   = 52;                  // circumradius
+const W   = Math.sqrt(3) * R;    // hex width (flat-to-flat)
+const VSP = 1.5 * R;             // vertical row spacing
+const PAD = R + 10;
 
-function hexCenter(row, col) {
+function hexCenter(q, r) {
   return [
-    col * W + (row % 2 === 1 ? ODD : 0) + PAD,
-    row * DY + PAD
+    W * (q + r / 2) + PAD + W * N,
+    VSP * r + PAD + VSP * N
   ];
 }
 
-function hexPoints(cx, cy, r) {
+function hexPoints(cx, cy, rad) {
   const pts = [];
   for (let i = 0; i < 6; i++) {
-    const a = Math.PI / 180 * (60 * i - 30);
-    pts.push(`${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`);
+    const a = Math.PI / 180 * (60 * i - 30);  // pointy-top: vertices at top/bottom
+    pts.push(`${(cx + rad * Math.cos(a)).toFixed(1)},${(cy + rad * Math.sin(a)).toFixed(1)}`);
   }
   return pts.join(' ');
 }
@@ -281,16 +346,12 @@ const agents = {};
 // ═══════════════════════════════════════════
 function buildBoard() {
   const svg = document.getElementById('board-svg');
-  const rows = BOARD.length, cols = BOARD[0].length;
   let maxX = 0, maxY = 0;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      if (!BOARD[r][c]) continue;
-      const [x, y] = hexCenter(r, c);
-      maxX = Math.max(maxX, x + R + 4);
-      maxY = Math.max(maxY, y + R + 4);
-    }
-  }
+  CELLS.forEach(({q, r}) => {
+    const [x, y] = hexCenter(q, r);
+    maxX = Math.max(maxX, x + R + 4);
+    maxY = Math.max(maxY, y + R + 4);
+  });
   svg.setAttribute('viewBox', `0 0 ${maxX + PAD} ${maxY + PAD}`);
   svg.setAttribute('width',  maxX + PAD);
   svg.setAttribute('height', maxY + PAD);
@@ -309,37 +370,30 @@ function buildBoard() {
   svg.appendChild(defs);
 
   const hexLayer  = document.createElementNS('http://www.w3.org/2000/svg','g');
+  const moveLayer = document.createElementNS('http://www.w3.org/2000/svg','g');
   const agentLayer= document.createElementNS('http://www.w3.org/2000/svg','g');
   hexLayer.id = 'hex-layer';
+  moveLayer.id = 'move-layer';
   agentLayer.id = 'agent-layer';
   svg.appendChild(hexLayer);
+  svg.appendChild(moveLayer);
   svg.appendChild(agentLayer);
 
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const code = BOARD[r][c];
-      if (!code) continue;
+  CELLS.forEach(({q, r, code}) => {
       const td = T[code];
-      const [cx, cy] = hexCenter(r, c);
+      const [cx, cy] = hexCenter(q, r);
 
       const g = document.createElementNS('http://www.w3.org/2000/svg','g');
       g.classList.add('hex-group');
-      g.dataset.row = r; g.dataset.col = c; g.dataset.code = code;
-      g.id = `h${r}_${c}`;
+      g.dataset.q = q; g.dataset.r = r; g.dataset.code = code;
+      g.id = `h${q}_${r}`.replace(/-/g,'n');
 
-      // Shadow polygon (offset for 3D feel)
-      const shadow = document.createElementNS('http://www.w3.org/2000/svg','polygon');
-      shadow.setAttribute('points', hexPoints(cx + 2.5, cy + 3, R - 1));
-      shadow.setAttribute('fill', '#1a0e0466');
-      shadow.setAttribute('stroke', 'none');
-      g.appendChild(shadow);
-
-      // Main hex
+      // Main hex (inset to leave dark gap → Titan look)
       const poly = document.createElementNS('http://www.w3.org/2000/svg','polygon');
-      poly.setAttribute('points', hexPoints(cx, cy, R - 1));
+      poly.setAttribute('points', hexPoints(cx, cy, R - 2.5));
       poly.setAttribute('fill', td.fill);
       poly.setAttribute('stroke', td.stroke);
-      poly.setAttribute('stroke-width', '3');
+      poly.setAttribute('stroke-width', '2.5');
       poly.setAttribute('stroke-linejoin', 'round');
       poly.classList.add('main-poly');
       g.appendChild(poly);
@@ -347,32 +401,32 @@ function buildBoard() {
       // GM Lab inner dashed ring
       if (code === 'G') {
         const ring = document.createElementNS('http://www.w3.org/2000/svg','polygon');
-        ring.setAttribute('points', hexPoints(cx, cy, R - 10));
+        ring.setAttribute('points', hexPoints(cx, cy, R - 9));
         ring.setAttribute('fill', 'none');
         ring.setAttribute('stroke', '#a0c8ff');
         ring.setAttribute('stroke-width', '1.5');
-        ring.setAttribute('stroke-dasharray', '5 3');
-        ring.setAttribute('opacity', '0.7');
+        ring.setAttribute('stroke-dasharray', '4 3');
+        ring.setAttribute('opacity', '0.8');
         g.appendChild(ring);
       }
 
       // Icon
       const icon = document.createElementNS('http://www.w3.org/2000/svg','text');
       icon.setAttribute('x', cx);
-      icon.setAttribute('y', cy - 9);
-      icon.setAttribute('font-size', code === 'G' ? '20' : '18');
+      icon.setAttribute('y', cy - 11);
+      icon.setAttribute('font-size', code === 'G' ? '27' : '24');
       icon.setAttribute('class', 'hex-label');
       icon.setAttribute('fill', td.text);
       icon.textContent = td.icon;
       g.appendChild(icon);
 
       // Label background pill
-      const lblW = td.short.length * 5.8 + 8;
+      const lblW = td.short.length * 6.6 + 10;
       const lbg = document.createElementNS('http://www.w3.org/2000/svg','rect');
       lbg.setAttribute('x', cx - lblW/2);
-      lbg.setAttribute('y', cy + 10);
+      lbg.setAttribute('y', cy + 9);
       lbg.setAttribute('width', lblW);
-      lbg.setAttribute('height', 13);
+      lbg.setAttribute('height', 15);
       lbg.setAttribute('rx', '3');
       lbg.setAttribute('fill', td.labelBg || td.fill);
       lbg.setAttribute('stroke', td.stroke);
@@ -382,19 +436,19 @@ function buildBoard() {
       // Label text
       const label = document.createElementNS('http://www.w3.org/2000/svg','text');
       label.setAttribute('x', cx);
-      label.setAttribute('y', cy + 19);
-      label.setAttribute('font-size', '7.5');
+      label.setAttribute('y', cy + 19.5);
+      label.setAttribute('font-size', '9');
       label.setAttribute('class', 'hex-label');
       label.setAttribute('fill', '#fff');
       label.setAttribute('font-family', "'Arial Black', Impact, system-ui, sans-serif");
       label.setAttribute('font-weight', '900');
-      label.setAttribute('letter-spacing', '0.8');
+      label.setAttribute('letter-spacing', '0.6');
       label.textContent = td.short;
       g.appendChild(label);
 
       // Selected highlight ring (hidden by default)
       const selRing = document.createElementNS('http://www.w3.org/2000/svg','polygon');
-      selRing.setAttribute('points', hexPoints(cx, cy, R + 2));
+      selRing.setAttribute('points', hexPoints(cx, cy, R - 0.5));
       selRing.setAttribute('fill', 'none');
       selRing.setAttribute('stroke', '#f0d000');
       selRing.setAttribute('stroke-width', '4');
@@ -402,29 +456,87 @@ function buildBoard() {
       selRing.classList.add('sel-ring');
       g.appendChild(selRing);
 
-      g.addEventListener('click', () => onHexClick(r, c, code, cx, cy));
+      g.addEventListener('click', () => onHexClick(q, r, code));
       hexLayer.appendChild(g);
-    }
-  }
+  });
 
+  drawMoves(moveLayer);
   buildLegend();
   buildTerrainFilters();
 }
 
 // ═══════════════════════════════════════════
+// MOVEMENT MARKERS — drawn on shared hex edges
+// ═══════════════════════════════════════════
+const SVGNS = 'http://www.w3.org/2000/svg';
+function drawMoves(layer) {
+  MOVES.forEach(m => {
+    const [ax, ay] = hexCenter(m.q, m.r);
+    const [bx, by] = hexCenter(m.tq, m.tr);
+    // place marker on the shared edge: ~40% of the way toward neighbour
+    const mx = ax + (bx - ax) * 0.40;
+    const my = ay + (by - ay) * 0.40;
+    const deg = Math.atan2(by - ay, bx - ax) * 180 / Math.PI;
+    const g = document.createElementNS(SVGNS, 'g');
+    g.setAttribute('transform', `translate(${mx.toFixed(1)},${my.toFixed(1)}) rotate(${deg.toFixed(1)})`);
+
+    if (m.type === 'arrow') {            // ▸▸▸ normal flow
+      [-7, 0, 7].forEach(dx => {
+        const d = `M ${dx-4},-6 L ${dx+4},0 L ${dx-4},6`;
+        const under = document.createElementNS(SVGNS, 'path');
+        under.setAttribute('d', d);
+        under.setAttribute('fill', 'none');
+        under.setAttribute('stroke', '#1a0e04');
+        under.setAttribute('stroke-width', '4.5');
+        under.setAttribute('stroke-linecap', 'round');
+        under.setAttribute('stroke-linejoin', 'round');
+        g.appendChild(under);
+        const over = document.createElementNS(SVGNS, 'path');
+        over.setAttribute('d', d);
+        over.setAttribute('fill', 'none');
+        over.setAttribute('stroke', '#ffd21a');
+        over.setAttribute('stroke-width', '2.2');
+        over.setAttribute('stroke-linecap', 'round');
+        over.setAttribute('stroke-linejoin', 'round');
+        g.appendChild(over);
+      });
+    } else if (m.type === 'block') {     // ■ required
+      const r1 = document.createElementNS(SVGNS, 'rect');
+      r1.setAttribute('x', -7); r1.setAttribute('y', -9);
+      r1.setAttribute('width', 14); r1.setAttribute('height', 18);
+      r1.setAttribute('rx', 2);
+      r1.setAttribute('fill', '#d12020');
+      r1.setAttribute('stroke', '#1a0e04');
+      r1.setAttribute('stroke-width', '2.5');
+      g.appendChild(r1);
+    } else if (m.type === 'rounded') {   // ◗ optional
+      const a1 = document.createElementNS(SVGNS, 'path');
+      a1.setAttribute('d', 'M 0,-10 A 10,10 0 0,1 0,10 Z');
+      a1.setAttribute('fill', '#2aa0e0');
+      a1.setAttribute('stroke', '#1a0e04');
+      a1.setAttribute('stroke-width', '2.5');
+      g.appendChild(a1);
+    }
+    layer.appendChild(g);
+  });
+}
+
+// ═══════════════════════════════════════════
 // INTERACTION
 // ═══════════════════════════════════════════
-function onHexClick(r, c, code, cx, cy) {
+function hexId(q, r) { return `h${q}_${r}`.replace(/-/g,'n'); }
+
+function onHexClick(q, r, code) {
   // Deselect previous
   if (selectedHex) {
-    const prev = document.getElementById(`h${selectedHex[0]}_${selectedHex[1]}`);
+    const prev = document.getElementById(hexId(selectedHex[0], selectedHex[1]));
     prev?.querySelector('.sel-ring')?.setAttribute('opacity','0');
   }
-  selectedHex = [r, c];
-  document.getElementById(`h${r}_${c}`).querySelector('.sel-ring')?.setAttribute('opacity','1');
+  selectedHex = [q, r];
+  document.getElementById(hexId(q, r)).querySelector('.sel-ring')?.setAttribute('opacity','1');
 
   // Toggle agent
-  const key = `${r},${c}`;
+  const key = `${q},${r}`;
   if (!agents[key]) agents[key] = [];
   const idx = agents[key].indexOf(selectedPlayer);
   if (idx >= 0) {
@@ -434,15 +546,15 @@ function onHexClick(r, c, code, cx, cy) {
     agents[key].push(selectedPlayer);
   }
   renderAgents();
-  showInfo(r, c, code);
+  showInfo(q, r, code);
 }
 
 function renderAgents() {
   const layer = document.getElementById('agent-layer');
   layer.innerHTML = '';
   Object.entries(agents).forEach(([key, list]) => {
-    const [r, c] = key.split(',').map(Number);
-    const [cx, cy] = hexCenter(r, c);
+    const [q, r] = key.split(',').map(Number);
+    const [cx, cy] = hexCenter(q, r);
     const n = list.length;
     list.forEach((pIdx, i) => {
       const off = n > 1 ? (i - (n-1)/2) * 14 : 0;
@@ -482,14 +594,14 @@ function renderAgents() {
   });
 }
 
-function showInfo(r, c, code) {
+function showInfo(q, r, code) {
   const td = T[code];
   const panel = document.getElementById('info-panel');
   let html = `
     <div class="ip-header" style="background:${td.fill}22;border-bottom-color:${td.fill}">
       <span class="ip-icon">${td.icon}</span>
       <div class="ip-terrain-name" style="color:${td.labelBg||td.fill}">${td.name}</div>
-      <div class="ip-coords">Hex R${r}·C${c}</div>
+      <div class="ip-coords">Hex ${q},${r}</div>
     </div>
     <div class="ip-blurb">${td.blurb}</div>`;
 
@@ -583,6 +695,35 @@ function rollGMLab() {
 function selectPlayer(idx) {
   selectedPlayer = idx;
   document.querySelectorAll('.player-btn').forEach((b,i)=>b.classList.toggle('selected',i===idx));
+}
+
+// ═══════════════════════════════════════════
+// TURN MOVEMENT — split option, then 1d6
+// ═══════════════════════════════════════════
+let moveAnim = null;
+function rollMove() {
+  clearTimeout(moveAnim);
+  const out = document.getElementById('move-readout');
+  out.style.color = '#fef8ec';
+  // Step 1: present the split option (Titan order: split BEFORE the move roll)
+  const wantSplit = confirm('SPLIT OPTION (before rolling)\n\n' +
+    'Split one of your stacks into two now?\n' +
+    '• OK = yes, split a stack\n' +
+    '• Cancel = no split, go straight to movement');
+  const faces = ['⚀','⚁','⚂','⚃','⚄','⚅'];
+  let ticks = 0;
+  function spin() {
+    out.textContent = `🎲 ${faces[Math.floor(Math.random()*6)]} rolling…`;
+    ticks++;
+    if (ticks < 9) moveAnim = setTimeout(spin, 60 + ticks*15);
+    else {
+      const roll = Math.floor(Math.random()*6) + 1;
+      out.innerHTML = `${wantSplit ? '✂️ Split done · ' : ''}` +
+        `🎲 <b style="color:#ffd21a">${faces[roll-1]} ${roll}</b> — move each agent <b>exactly ${roll}</b> hex${roll>1?'es':''} ` +
+        `along ▸▸▸ (or ■ required / ◗ optional) edges.`;
+    }
+  }
+  spin();
 }
 
 function clearAgents() {
