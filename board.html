@@ -50,6 +50,7 @@ html,body{min-height:100vh;background:#fef8ec;color:#1a0a00;font-family:'Segoe U
 .hex-group.dimmed polygon.main-poly{filter:brightness(0.5) saturate(0.3);}
 .hex-group.highlighted polygon.main-poly{filter:brightness(1.25) saturate(1.3);}
 .hex-label{pointer-events:none;text-anchor:middle;dominant-baseline:middle;}
+#move-layer,#agent-layer{pointer-events:none;}
 
 /* ── INFO PANEL ── */
 .info-panel{width:300px;flex-shrink:0;background:var(--card);border-left:3px solid var(--ink);overflow-y:auto;max-height:calc(100vh - 108px);position:sticky;top:0;}
@@ -135,7 +136,7 @@ html,body{min-height:100vh;background:#fef8ec;color:#1a0a00;font-family:'Segoe U
 <div class="main-layout">
   <div class="board-wrap">
     <div class="board-frame">
-      <div class="board-title">🌍 Evolutionary Terrain Map — Titan Pieces · 3 Long Edges Each</div>
+      <div class="board-title">🌍 Evolutionary Masterboard — 96 Biomes · 6 GM Labs · Titan Movement</div>
       <svg id="board-svg"></svg>
     </div>
   </div>
@@ -150,13 +151,24 @@ html,body{min-height:100vh;background:#fef8ec;color:#1a0a00;font-family:'Segoe U
 
 <div class="legend" id="legend"></div>
 
+<script src="board-data.js"></script>
 <script>
 // ═══════════════════════════════════════════
-// BOARD ENGINE — Titan truncated-triangle pieces
-// Each piece is a hexagon with 3 LONG edges (movement in/out, 3 neighbours)
-// and 3 SHORT edges (corners / walls). Pieces are the faces of a triangular
-// tiling clipped to a big flat-top hexagon.
+// BOARD ENGINE — authentic Titan masterboard
+// PIECES + MOVES are imported from board-data.js, generated from the real
+// Titan masterboard (Colossus DefaultMap.xml): 96 hex pieces + exits.
+// Each piece is a truncated-triangle hexagon with 3 long movement edges.
+// Titan terrains relabelled to EAT IT | F*CK IT biomes.
 //
+// Movement markers on long edges (exact Titan exit types):
+//   flow = ARROWS  ▸▸▸ normal direction of travel
+//   must = BLOCK   ◢◢ required (must keep moving through)
+//   may  = ARCH    ◖  optional — usable only from your starting piece
+// ═══════════════════════════════════════════
+const PIECE_BY_ID = {};
+PIECES.forEach(p => PIECE_BY_ID[p.id] = p);
+
+/* legacy engine retained below for reference (disabled)
 // Movement markers on long edges:
 //   'flow'  ▸▸▸ triple chevrons = NORMAL direction of travel
 //   'must'  ◣◢ two triangles into a piece = REQUIRED: a stack crossing this
@@ -278,6 +290,7 @@ PIECES.forEach(pc => pc.longEdges.forEach(e => {
     MOVES.push({ mx, my, ang, type });
   }
 }));
+*/
 
 // ═══════════════════════════════════════════
 // TERRAIN DATA — comic palette
@@ -608,7 +621,7 @@ function renderAgents() {
 function showInfo(pc) {
   const td = T[pc.code];
   const panel = document.getElementById('info-panel');
-  const nNbr = pc.longEdges.filter(e => e.toId).length;
+  const nNbr = pc.mv;
   let html = `
     <div class="ip-header" style="background:${td.fill}22;border-bottom-color:${td.fill}">
       <span class="ip-icon">${td.icon}</span>
