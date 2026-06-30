@@ -300,25 +300,31 @@ html,body{min-height:100vh;background:#fdf9f3;color:#2a1a0a;font-family:-apple-s
       <div id="clash-type" style="font-size:11px;font-weight:800;"></div>
     </div>
 
-    <!-- Life trackers -->
+    <!-- Catastrophe banner -->
+    <div id="cata-banner" style="display:none;align-items:center;gap:10px;background:#2a0e0e;border:2px solid #e02418;border-radius:12px;padding:10px 16px;margin-bottom:12px;color:#ffd2c0;"></div>
+
+    <!-- Life + energy trackers -->
     <div style="display:flex;gap:12px;margin-bottom:10px;">
       <div style="flex:1;text-align:center;border:2px solid var(--eat);border-radius:10px;padding:8px;background:var(--eat-d,#fdf0ea);">
         <div class="atk-l" style="font-weight:900;font-size:13px;">⚔️ Attacker</div>
         <div id="life-atk" style="font-size:18px;letter-spacing:2px;"></div>
+        <div id="alloc-atk" style="margin-top:6px;"></div>
       </div>
       <div style="flex:1;text-align:center;border:2px solid var(--fk);border-radius:10px;padding:8px;background:var(--fk-d,#f5f0ff);">
         <div class="def-l" style="font-weight:900;font-size:13px;">🛡️ Defender</div>
         <div id="life-def" style="font-size:18px;letter-spacing:2px;"></div>
+        <div id="alloc-def" style="margin-top:6px;"></div>
       </div>
     </div>
 
     <!-- Clash arena -->
-    <div style="display:grid;grid-template-columns:1fr 70px 1fr;gap:10px;align-items:stretch;margin-bottom:10px;">
+    <div style="display:grid;grid-template-columns:1fr 84px 1fr;gap:10px;align-items:stretch;margin-bottom:10px;">
       <div id="arena-atk" class="arena-slot"></div>
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
-        <div style="font-size:22px;font-weight:900;color:var(--muted);">VS</div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;">
+        <div style="font-size:20px;font-weight:900;color:var(--muted);">VS</div>
+        <div id="dice-display" style="min-height:40px;display:flex;gap:5px;align-items:center;justify-content:center;font-size:11px;font-weight:800;"></div>
         <button id="resolve-btn" onclick="resolveClash()" disabled
-          style="padding:8px 6px;border:2px solid #000;background:#c4561e;color:#fff;font-family:inherit;font-size:11px;font-weight:800;border-radius:8px;cursor:pointer;width:100%;">Resolve</button>
+          style="padding:8px 6px;border:2px solid #000;background:#c4561e;color:#fff;font-family:inherit;font-size:11px;font-weight:800;border-radius:8px;cursor:pointer;width:100%;">🎲 Resolve</button>
       </div>
       <div id="arena-def" class="arena-slot"></div>
     </div>
@@ -531,22 +537,117 @@ const FEATS = {
 };
 
 // ─────────────────────────────────────────
+// V2 CONFIG — all tuning knobs here
+// ─────────────────────────────────────────
+const CFG = {
+  startLife: 5,
+  energyPerRound: 3,     // split each round between Metabolize / Reproduce
+  nativeBonus: 2,        // base native-terrain power (terrain table overrides)
+  packMax: 3, lineageMax: 3,
+  critRoll: 6, critBonus: 2,   // Selection Die
+  fumbleRoll: 1, fumblePenalty: 2,
+};
+const START_LIFE = CFG.startLife;
+
+// ─────────────────────────────────────────
+// KEYWORDS — biological counters (by card id)
+// ─────────────────────────────────────────
+const KW = {
+  sit_wait:['ambush'], trap_build:['ambush'],
+  venom:['venom','range'], electro:['venom'],
+  echolocation:['range'], hgt:['range'], spore:['range','tough'], repro_manip:['range'],
+  pack_hunt:['pack'], persistence:['pack'], allo_parent:['pack'], eusocial:['pack'],
+  broadcast:['swarm'], swarm_breed:['swarm'], binary_fission:['swarm'], budding:['swarm'],
+  fragmentation:['tough'],
+};
+function kwOf(card){ return (card.kw || KW[card.id] || []); }
+function hasKW(card,k){ return kwOf(card).includes(k); }
+function isAquatic(card){ return (card.ter||[]).some(t=>t==='O'||t==='S'); }
+function isCold(card){ return (card.ter||[]).includes('I'); }
+function isPhoto(card){ return card.id==='anoxygenic'||card.id==='oxygenic'; }
+
+// ─────────────────────────────────────────
+// TERRAIN EFFECTS — terrain drives the outcome
+// native: power for terrain-native cards; each rule is applied in effPower/ctx
+// ─────────────────────────────────────────
+const TERRAIN_FX = {
+  V:{native:3, nonNative:-1, note:'Volcanic: natives +3, others −1.'},
+  O:{native:2, ambushOff:true, fastBonus:2, note:'Open Ocean: ambush useless; MOV ≥4 +2.'},
+  F:{native:2, blockRange:true, ambushBonus:2, note:'Forest: rangestrike blocked; ambush +2.'},
+  C:{native:2, blockRange:true, nonNative:-1, note:'Cave: range blocked; darkness −1 to non-natives.'},
+  I:{native:2, swarmPenalty:-2, toughBonus:1, note:'Ice Age: swarmers −2; tough +1.'},
+  A:{native:2, ambushOff:true, packBonus:2, note:'Savannah: ambush off; pack +2.'},
+  D:{native:2, ambushBonus:2, venomBonus:1, swarmPenalty:-2, note:'Desert: ambush +2, venom +1, swarmers −2.'},
+  S:{native:2, aquaticBonus:1, note:'Shallow Sea: aquatic +1.'},
+  P:{native:2, aquaticBonus:1, note:'Swamp: aquatic +1.'},
+  G:{native:1, wildcard:true, note:'GM Lab: a random ±1 mutation each clash.'},
+};
+
+// ─────────────────────────────────────────
+// CATASTROPHES — flip at rounds 3 & 6 (and 1-in-6 otherwise)
+// ─────────────────────────────────────────
+const CATASTROPHES = [
+  {id:'extinction', icon:'☄️', name:'Mass Extinction', head:'The big and specialized die first.',
+   fx:c=>(c.t>=4?-3:0) + ((hasKW(c,'swarm')||hasKW(c,'tough'))?2:0)},
+  {id:'icesnap', icon:'🧊', name:'Ice Snap', head:'Cold-blooded plans freeze.',
+   fx:c=>(isCold(c)?0:-2)},
+  {id:'winter', icon:'🌑', name:'Asteroid Winter', head:'No sun, no sight — range & photosynthesis fail.',
+   fx:c=>((hasKW(c,'range')||isPhoto(c))?-3:0)},
+  {id:'anoxia', icon:'🟢', name:'Ocean Anoxia', head:'The water suffocates.',
+   fx:c=>(isAquatic(c)?-3:0)},
+  {id:'hyperthermal', icon:'🔥', name:'Hyperthermal Spike', head:'Everything cooks except the vent-dwellers.',
+   fx:c=>((c.ter||[]).includes('V')?0:-2)},
+  {id:'bloom', icon:'🌸', name:'Resource Bloom', head:'Abundance — breeders gorge.',
+   fx:c=>0, reproDouble:true},
+];
+
+// ─────────────────────────────────────────
+// WEIRDO SIGNATURE STACKS — each weirdo brings its own strategies
+// (mini-cards: off/def/rep/ada/mov/ter + kw). Power uses battle type's stat.
+// ─────────────────────────────────────────
+const WEIRDO_STACKS = {
+  1:{n:'Lamprey',art:'🪡',cards:[
+    {id:'w_sucker',n:'Sucker Lock',art:'🪠',off:4,def:1,rep:6,ada:4,mov:4,ter:['O','S'],kw:['venom']},
+    {id:'w_rasp',n:'Rasping Tongue',art:'👅',off:5,def:1,rep:2,ada:3,mov:3,ter:['O','S'],kw:[]},
+    {id:'w_anticoag',n:'Anticoagulant',art:'🩸',off:3,def:2,rep:4,ada:5,mov:2,ter:['O','S'],kw:['venom']}]},
+  2:{n:'Platypus',art:'🦆',cards:[
+    {id:'w_electro',n:'Electroreception',art:'⚡',off:5,def:3,rep:3,ada:6,mov:3,ter:['P','S'],kw:['range']},
+    {id:'w_venomspur',n:'Venom Spur',art:'🦵',off:6,def:2,rep:1,ada:3,mov:2,ter:['P'],kw:['venom']},
+    {id:'w_egglay',n:'Monotreme Eggs',art:'🥚',off:0,def:4,rep:6,ada:4,mov:1,ter:['P','F'],kw:[]}]},
+  3:{n:'Horseshoe Crab',art:'🦀',cards:[
+    {id:'w_fossil',n:'Living Fossil',art:'🪨',off:1,def:8,rep:5,ada:8,mov:1,ter:['S','O'],kw:['tough']},
+    {id:'w_molt',n:'Armored Molt',art:'🛡️',off:2,def:7,rep:3,ada:4,mov:1,ter:['S'],kw:['tough']},
+    {id:'w_massspawn',n:'Mass Spawn',art:'🥚',off:0,def:3,rep:8,ada:2,mov:1,ter:['S','O'],kw:['swarm']}]},
+  4:{n:'Fungi Network',art:'🍄',cards:[
+    {id:'w_mycelium',n:'Mycelium Web',art:'🕸️',off:2,def:4,rep:5,ada:7,mov:0,ter:['F','C'],kw:['tough']},
+    {id:'w_spores',n:'Spore Burst',art:'💠',off:0,def:5,rep:8,ada:5,mov:1,ter:['F','C','D'],kw:['swarm','range']},
+    {id:'w_decay',n:'Decomposition',art:'🍂',off:3,def:3,rep:4,ada:6,mov:0,ter:['F','P'],kw:[]}]},
+  5:{n:'Tardigrade',art:'🐛',cards:[
+    {id:'w_crypto',n:'Cryptobiosis',art:'🛏️',off:0,def:10,rep:2,ada:10,mov:1,ter:['I','D','V'],kw:['tough']},
+    {id:'w_anhydro',n:'Anhydrobiosis',art:'🏜️',off:0,def:9,rep:3,ada:8,mov:1,ter:['D','I'],kw:['tough']},
+    {id:'w_dnarepair',n:'DNA Repair',art:'🧬',off:1,def:7,rep:4,ada:9,mov:1,ter:['V','C'],kw:['tough']}]},
+  6:{n:'Mantis Shrimp',art:'🦐',cards:[
+    {id:'w_dactyl',n:'Dactyl Club',art:'🥊',off:8,def:2,rep:4,ada:3,mov:4,ter:['S','O'],kw:['ambush']},
+    {id:'w_polarvis',n:'Polarized Vision',art:'🌈',off:5,def:2,rep:3,ada:8,mov:4,ter:['S','O'],kw:['range']},
+    {id:'w_strike',n:'Cavitation Strike',art:'💥',off:7,def:1,rep:2,ada:5,mov:3,ter:['S','O'],kw:['range']}]},
+};
+
+// ─────────────────────────────────────────
 // GAME STATE
 // ─────────────────────────────────────────
-const START_LIFE = 5;
-let G = {
-  battleType: null,
-  terrain: null,
-  round: 1,
-  step: 'atk',              // 'atk' = attacker to play, 'def' = defender to play, 'ready' = resolve
+function freshG(){ return {
+  battleType: null, terrain: null, round: 1,
+  step: 'atk',              // 'atk' play, 'def' play, 'ready' resolve
   life: {atk: START_LIFE, def: START_LIFE},
-  stack: {atk: [], def: []},// instances: {card, adapt, exhausted, isWeirdo}
-  played: {atk: null, def: null}, // index into stack
-  weirdoUsed: false,
-  musterUsed: false,
-  winner: null,
-  log: [],
-};
+  energy: {atk: CFG.energyPerRound, def: CFG.energyPerRound},
+  alloc: {atk: {meta:CFG.energyPerRound, repro:0}, def: {meta:CFG.energyPerRound, repro:0}},
+  stack: {atk: [], def: []},
+  played: {atk: null, def: null},
+  cata: null,               // active catastrophe this round
+  weirdoUsed: false, musterUsed: false,
+  winner: null, outcome: '', log: [],
+}; }
+let G = freshG();
 
 let atkSelected = new Set();
 let defSelected = new Set();
@@ -617,6 +718,20 @@ function battleStats(card, battleType, terrain){
 
 function mkInst(card, isWeirdo){ return {card, adapt:0, exhausted:false, isWeirdo:!!isWeirdo}; }
 
+function rollDie(){ return 1 + Math.floor(Math.random()*6); }
+
+function beginRound(){
+  G.energy.atk = CFG.energyPerRound; G.energy.def = CFG.energyPerRound;
+  G.alloc.atk = {meta:CFG.energyPerRound, repro:0};
+  G.alloc.def = {meta:CFG.energyPerRound, repro:0};
+  G.cata = null;
+  const forced = (G.round===3 || G.round===6);
+  if(forced || Math.floor(Math.random()*6)===0){
+    G.cata = CATASTROPHES[Math.floor(Math.random()*CATASTROPHES.length)];
+    addLog(`${G.cata.icon} CATASTROPHE — ${G.cata.name}: ${G.cata.head}`);
+  }
+}
+
 function startBattle(){
   const deck = G.battleType === 'eat' ? EAT : FK;
   G.stack.atk = deck.filter(c=>atkSelected.has(c.id)).map(c=>mkInst(c));
@@ -626,86 +741,145 @@ function startBattle(){
   G.played = {atk:null, def:null};
   G.weirdoUsed = false; G.musterUsed = false;
   G.winner = null; G.outcome = '';
-  G.log = ['⚔️ Terrain Clash begins in ' + BOARDS[G.terrain].name + '! Each side starts with ' + START_LIFE + ' life.'];
-
+  G.log = ['⚔️ Terrain Clash in ' + BOARDS[G.terrain].name + '! Life ' + START_LIFE + ' each · ' + CFG.energyPerRound + ' energy/round.'];
+  beginRound();
   document.getElementById('phase-setup').style.display = 'none';
   document.getElementById('phase-battle').style.display = 'block';
+  document.getElementById('dice-display').innerHTML = '';
   renderClash();
 }
 
 // ─────────────────────────────────────────
-// CLASH MATH (deterministic, terrain-driven)
+// CLASH MATH — Power = base + terrain + energy + lineage + keywords + catastrophe
 // ─────────────────────────────────────────
-const RANGE_BLOCKED = ['F','C'];   // dense terrains negate rangestrike
-function effPower(inst){
+function effPower(inst, side, oppCard){
   const c = inst.card;
   const base = G.battleType === 'eat' ? c.off : c.rep;
-  let p = base + inst.adapt;
+  let p = base + (inst.adapt||0);
   const parts = [`${base} base`];
   if(inst.adapt) parts.push(`+${inst.adapt} adapt`);
+  const tf = TERRAIN_FX[G.terrain] || {native:CFG.nativeBonus};
   const native = (c.ter||[]).includes(G.terrain);
-  if(native){ p += 2; parts.push('+2 native'); }
-  if(native && (G.terrain==='V'||G.terrain==='C')){ p += 1; parts.push('+1 terrain'); }
-  if(c.fs){ p += 1; parts.push('+1 first-strike'); }
-  if(c.rs && !RANGE_BLOCKED.includes(G.terrain)){ p += 1; parts.push('+1 rangestrike'); }
-  else if(c.rs){ parts.push('rangestrike blocked'); }
+  if(native){ p += tf.native; parts.push(`+${tf.native} native`); }
+  else if(tf.nonNative){ p += tf.nonNative; parts.push(`${tf.nonNative} non-native`); }
+  // metabolize energy
+  const meta = side ? (G.alloc[side].meta||0) : 0;
+  if(meta){ p += meta; parts.push(`+${meta} metabolize`); }
+  // lineage coherence
+  if(side){
+    let lin = 0;
+    G.stack[side].forEach(o=>{ if(o!==inst && o.card.t < c.t && (o.card.ter||[]).some(t=>(c.ter||[]).includes(t))) lin++; });
+    lin = Math.min(CFG.lineageMax, lin);
+    if(lin){ p += lin; parts.push(`+${lin} lineage`); }
+  }
+  // pack
+  if(hasKW(c,'pack') && side){
+    let pk = G.stack[side].filter(o=>o!==inst).length;
+    pk = Math.min(CFG.packMax, pk) + (tf.packBonus||0);
+    if(pk){ p += pk; parts.push(`+${pk} pack`); }
+  }
+  // ambush
+  if(hasKW(c,'ambush')){
+    if(tf.ambushOff) parts.push('ambush negated (open)');
+    else if(oppCard && (oppCard.mov||1) >= 4) parts.push('ambush negated (fast prey)');
+    else { const ab = 3 + (tf.ambushBonus||0); p += ab; parts.push(`+${ab} ambush`); }
+  }
+  if(hasKW(c,'venom') && tf.venomBonus){ p += tf.venomBonus; parts.push(`+${tf.venomBonus} venom`); }
+  // range
+  if(hasKW(c,'range')){
+    if(tf.blockRange) parts.push('range blocked (cover)');
+    else { p += 1; parts.push('+1 range'); }
+  }
+  if(tf.aquaticBonus && isAquatic(c)){ p += tf.aquaticBonus; parts.push(`+${tf.aquaticBonus} aquatic`); }
+  if(tf.fastBonus && (c.mov||1) >= 4){ p += tf.fastBonus; parts.push(`+${tf.fastBonus} fast`); }
+  if(tf.swarmPenalty && hasKW(c,'swarm')){ p += tf.swarmPenalty; parts.push(`${tf.swarmPenalty} swarm`); }
+  if(tf.toughBonus && hasKW(c,'tough')){ p += tf.toughBonus; parts.push(`+${tf.toughBonus} tough`); }
+  // catastrophe
+  if(G.cata){ const cm = G.cata.fx(c); if(cm){ p += cm; parts.push(`${cm>0?'+':''}${cm} ${G.cata.name}`); } }
   return {pow: Math.max(0,p), parts, native};
 }
 
 function clashEval(aInst, dInst){
-  const a = effPower(aInst), d = effPower(dInst);
+  const a = effPower(aInst,'atk',dInst.card);
+  const d = effPower(dInst,'def',aInst.card);
+  const aDie = rollDie(), dDie = rollDie();
+  let aB=0,dB=0,aN='',dN='';
+  if(aDie===CFG.critRoll){aB=CFG.critBonus;aN='lucky mutation';} else if(aDie===CFG.fumbleRoll){aB=-CFG.fumblePenalty;aN='bad mutation';}
+  if(dDie===CFG.critRoll){dB=CFG.critBonus;dN='lucky mutation';} else if(dDie===CFG.fumbleRoll){dB=-CFG.fumblePenalty;dN='bad mutation';}
+  const aTot=a.pow+aDie+aB, dTot=d.pow+dDie+dB;
   let winner;
-  if(a.pow > d.pow) winner='atk';
-  else if(d.pow > a.pow) winner='def';
-  else if((aInst.card.ada||0) !== (dInst.card.ada||0)) winner = (aInst.card.ada>dInst.card.ada)?'atk':'def';
-  else if((aInst.card.def||0) !== (dInst.card.def||0)) winner = (aInst.card.def>dInst.card.def)?'atk':'def';
-  else winner = 'tie';
-  return {winner, a, d};
+  if(aTot>dTot)winner='atk'; else if(dTot>aTot)winner='def';
+  else if((aInst.card.ada||0)!==(dInst.card.ada||0))winner=aInst.card.ada>dInst.card.ada?'atk':'def';
+  else if((aInst.card.def||0)!==(dInst.card.def||0))winner=aInst.card.def>dInst.card.def?'atk':'def';
+  else winner='tie';
+  return {winner,a,d,aDie,dDie,aB,dB,aTot,dTot,aN,dN};
 }
+
+const FLAVORS = {
+  atk:['Natural selection in action.','The fit feed.','Adapt or perish — they adapted.'],
+  def:['The defender holds the niche.','Home-field biology wins.','Resilience pays off.'],
+  tie:['Mutually assured digestion.','Nobody wins the Red Queen\'s race.','Co-extinction, how romantic.'],
+};
+function flavor(ev){ const k=ev.winner; const arr=FLAVORS[k]||[]; return arr[Math.floor(Math.random()*arr.length)]||''; }
 
 // ─────────────────────────────────────────
 // PLAY / RESOLVE
 // ─────────────────────────────────────────
+function setAlloc(side, meta){
+  if(G.winner) return;
+  meta = Math.max(0, Math.min(G.energy[side], meta));
+  G.alloc[side] = {meta, repro: G.energy[side]-meta};
+  renderClash();
+}
 function playCard(side, idx){
   if(G.winner) return;
   const inst = G.stack[side][idx];
   if(!inst || inst.exhausted) return;
-  if(side==='atk' && (G.step==='atk')){ G.played.atk = idx; G.step='def'; }
-  else if(side==='def' && (G.step==='def')){ G.played.def = idx; G.step='ready'; }
-  else if(side==='atk' && G.step==='def'){ G.played.atk = idx; }   // re-pick before defender commits is blocked; allow only atk step
+  if(side==='atk' && G.step==='atk'){ G.played.atk = idx; G.step='def'; }
+  else if(side==='def' && G.step==='def'){ G.played.def = idx; G.step='ready'; }
   else return;
+  document.getElementById('dice-display').innerHTML = '';
   renderClash();
+}
+
+function applyRepro(side, inst){
+  let r = G.alloc[side].repro || 0;
+  if(G.cata && G.cata.reproDouble) r *= 2;
+  const who = side==='atk'?'Attacker':'Defender';
+  if(r>=2){ G.life[side]++; addLog(`🧬 ${who} reproduces — +1 life.`); }
+  if(r>=3){
+    const deck = G.battleType==='eat'?EAT:FK;
+    const opts = deck.filter(c=>(c.ter||[]).includes(G.terrain));
+    if(opts.length){ const c=opts[Math.floor(Math.random()*opts.length)]; G.stack[side].push(mkInst(c)); addLog(`🥚 ${who} spawns ${c.art} ${c.n}!`); }
+  }
 }
 
 function resolveClash(){
   if(G.step!=='ready' || G.played.atk==null || G.played.def==null) return;
-  const aInst = G.stack.atk[G.played.atk];
-  const dInst = G.stack.def[G.played.def];
+  const aInst = G.stack.atk[G.played.atk], dInst = G.stack.def[G.played.def];
   const ev = clashEval(aInst, dInst);
-  let msg;
-  if(ev.winner==='atk'){
-    G.life.def--; aInst.adapt++;
-    msg = `⚔️ ${aInst.card.n} (${ev.a.pow}) beats ${dInst.card.n} (${ev.d.pow}). Defender −1 life. ${aInst.card.n} adapts (+1 Power).`;
-  } else if(ev.winner==='def'){
-    G.life.atk--; dInst.adapt++;
-    msg = `🛡️ ${dInst.card.n} (${ev.d.pow}) beats ${aInst.card.n} (${ev.a.pow}). Attacker −1 life. ${dInst.card.n} adapts (+1 Power).`;
-  } else {
-    G.life.atk--; G.life.def--;
-    msg = `💥 Stalemate — ${aInst.card.n} (${ev.a.pow}) vs ${dInst.card.n} (${ev.d.pow}). Both sides −1 life.`;
-  }
+  showDice(ev);
+  const aC=aInst.card, dC=dInst.card;
+  let la=0, ld=0, msg='';
+  if(ev.winner==='atk'){ ld=1; aInst.adapt++; msg=`⚔️ ${aC.n} wins ${ev.aTot}–${ev.dTot}.`; if(hasKW(aC,'venom')){ld++; msg+=' ☠️ Venom — extra life!';} }
+  else if(ev.winner==='def'){ la=1; dInst.adapt++; msg=`🛡️ ${dC.n} wins ${ev.dTot}–${ev.aTot}.`; if(hasKW(dC,'venom')){la++; msg+=' ☠️ Venom — extra life!';} }
+  else { la=1; ld=1; msg=`💥 Dead heat ${ev.aTot}–${ev.dTot}.`; if(hasKW(aC,'venom'))ld++; if(hasKW(dC,'venom'))la++; }
+  if(la>0 && hasKW(aC,'tough') && !aInst.toughUsed){ aInst.toughUsed=true; la=0; msg+=' 🪨 Attacker shrugs it off (Tough).'; }
+  if(ld>0 && hasKW(dC,'tough') && !dInst.toughUsed){ dInst.toughUsed=true; ld=0; msg+=' 🪨 Defender shrugs it off (Tough).'; }
+  G.life.atk-=la; G.life.def-=ld;
+  applyRepro('atk',aInst); applyRepro('def',dInst);
   addLog(msg);
-  G.outcome = msg;
-  // exhaust just-played cards for the next round; refresh the rest
+  G.outcome = msg + ' — ' + flavor(ev);
   G.stack.atk.forEach(i=>i.exhausted=false); G.stack.def.forEach(i=>i.exhausted=false);
-  aInst.exhausted = true; dInst.exhausted = true;
+  if(!hasKW(aC,'swarm')) aInst.exhausted=true;
+  if(!hasKW(dC,'swarm')) dInst.exhausted=true;
 
   if(G.life.atk<=0 && G.life.def<=0){ endBattle('draw'); return; }
   if(G.life.atk<=0){ endBattle('def'); return; }
   if(G.life.def<=0){ endBattle('atk'); return; }
 
-  G.round++;
-  G.played = {atk:null, def:null};
-  G.step = 'atk';
+  G.round++; G.played={atk:null,def:null}; G.step='atk';
+  beginRound();
   renderClash();
 }
 
@@ -714,24 +888,27 @@ function resolveClash(){
 // ─────────────────────────────────────────
 function hearts(side){
   const n = Math.max(0, G.life[side]);
-  return '❤️'.repeat(n) + '🤍'.repeat(Math.max(0, START_LIFE - n)) + (G.life[side] > START_LIFE ? ' +' : '');
+  return '❤️'.repeat(Math.min(n,12)) + (n>START_LIFE?' +'+(n-START_LIFE):'🤍'.repeat(Math.max(0,START_LIFE-n)));
+}
+const KW_COLORS = {ambush:'#7a4800',venom:'#7a1010',range:'#1a5a80',pack:'#1e7a40',swarm:'#7a5a10',tough:'#5a4a38'};
+function kwTags(card){
+  return kwOf(card).map(k=>`<span style="background:${KW_COLORS[k]||'#555'};color:#fff;border-radius:3px;padding:1px 4px;font-size:8px;font-weight:800;text-transform:uppercase;margin-right:2px;">${k}</span>`).join('');
 }
 function arenaSlot(side){
   const el = document.getElementById('arena-'+side);
   const idx = G.played[side];
   el.className = 'arena-slot ' + (side==='atk'?'atk-side':'def-side');
-  if(idx==null){
-    el.innerHTML = `<div style="color:var(--muted);font-size:11px;">${side==='atk'?'⚔️ Attacker':'🛡️ Defender'}<br>—</div>`;
-    return;
-  }
+  if(idx==null){ el.innerHTML = `<div style="color:var(--muted);font-size:11px;">${side==='atk'?'⚔️ Attacker':'🛡️ Defender'}<br>—</div>`; return; }
   const inst = G.stack[side][idx];
-  const ep = effPower(inst);
+  const oppIdx = G.played[side==='atk'?'def':'atk'];
+  const oppCard = oppIdx!=null ? G.stack[side==='atk'?'def':'atk'][oppIdx].card : null;
+  const ep = effPower(inst, side, oppCard);
   el.classList.add('filled');
   el.innerHTML = `<div class="as-art">${inst.card.art}</div>
     <div class="as-name">${inst.card.n}${inst.isWeirdo?' 🧬':''}</div>
     <div class="as-pow">${ep.pow}</div>
     <div class="as-break">${ep.parts.join(' · ')}</div>
-    <div class="as-tags">ADA ${inst.card.ada} · DEF ${inst.card.def}${inst.card.fs?' · FIRST-STRIKE':''}${inst.card.rs?' · RANGE':''}</div>`;
+    <div class="as-tags">${kwTags(inst.card)} ADA ${inst.card.ada} · DEF ${inst.card.def} · MOV ${inst.card.mov}</div>`;
 }
 function stackList(side){
   const cont = document.getElementById('stack-'+side);
@@ -739,27 +916,53 @@ function stackList(side){
   cont.className = 'stk-list' + (activeSide?' active':'');
   cont.innerHTML = '';
   G.stack[side].forEach((inst,i)=>{
-    const ep = effPower(inst);
+    const ep = effPower(inst, side, null);
     const isPlayed = G.played[side]===i;
     const div = document.createElement('div');
-    div.className = 'stk-card' + (inst.exhausted?' exhausted':'') + (isPlayed?' played':'');
+    div.className = 'stk-card' + (inst.exhausted&&!hasKW(inst.card,'swarm')?' exhausted':'') + (isPlayed?' played':'');
     div.innerHTML = `<span class="sc-art">${inst.card.art}</span>
-      <span class="sc-name">${inst.card.n}${inst.isWeirdo?' 🧬':''}${inst.adapt?` <span style="color:#1a8030">+${inst.adapt}</span>`:''}</span>
+      <span class="sc-name">${inst.card.n}${inst.isWeirdo?' 🧬':''}${inst.adapt?` <span style="color:#1a8030">+${inst.adapt}</span>`:''}<br>${kwTags(inst.card)}</span>
       <span class="sc-pow">${ep.pow}${ep.native?'⭐':''}</span>`;
-    if(!inst.exhausted && activeSide) div.onclick = ()=>playCard(side,i);
+    if((!inst.exhausted||hasKW(inst.card,'swarm')) && activeSide) div.onclick = ()=>playCard(side,i);
     cont.appendChild(div);
   });
+}
+function allocControl(side){
+  const el = document.getElementById('alloc-'+side);
+  const editable = (G.step==='atk'&&side==='atk') || (G.step==='def'&&side==='def');
+  const a = G.alloc[side]; const E = G.energy[side];
+  let btns = '';
+  for(let m=0;m<=E;m++){
+    const on = a.meta===m;
+    btns += `<button ${editable?'':'disabled'} onclick="setAlloc('${side}',${m})" style="border:1.5px solid #000;border-radius:5px;padding:2px 6px;font-size:10px;font-weight:800;font-family:inherit;cursor:${editable?'pointer':'default'};background:${on?'#1a140c':'#fff'};color:${on?'#ffd21a':'#888'};">${m}</button>`;
+  }
+  el.innerHTML = `<div style="font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">⚡Energy ${E} → 🦷Fight / 🧬Breed</div>
+    <div style="display:flex;gap:3px;justify-content:center;margin-top:3px;">${btns}</div>
+    <div style="font-size:9px;color:var(--muted);margin-top:2px;">🦷+${a.meta} power · 🧬${a.repro} breed${a.repro>=2?' (+1 life)':''}${a.repro>=3?' +spawn':''}</div>`;
+}
+function showDice(ev){
+  const el = document.getElementById('dice-display');
+  const face = n => '⚀⚁⚂⚃⚄⚅'[n-1];
+  const tag = (die,n)=> n? `<span style="font-size:8px;color:${die===6?'#1a8030':'#c02018'}">${n}</span>`:'';
+  el.innerHTML = `<div style="text-align:center"><div style="font-size:18px">${face(ev.aDie)}</div>${tag(ev.aDie,ev.aN)}</div>
+    <div style="text-align:center"><div style="font-size:18px">${face(ev.dDie)}</div>${tag(ev.dDie,ev.dN)}</div>`;
 }
 function renderClash(){
   const b = BOARDS[G.terrain];
   document.getElementById('clash-terrain').innerHTML = b.icon+' '+b.name;
-  document.getElementById('clash-terrain-desc').textContent = b.desc;
+  document.getElementById('clash-terrain-desc').textContent = (TERRAIN_FX[G.terrain]||{}).note || b.desc;
   document.getElementById('clash-round').textContent = 'Round '+G.round;
   document.getElementById('clash-type').innerHTML = G.battleType==='eat'
     ? '<span class="eat-w">🦷 EAT IT — Power = OFF</span>' : '<span class="fk-w">🧬 F*CK IT — Power = REP</span>';
   document.getElementById('life-atk').textContent = hearts('atk');
   document.getElementById('life-def').textContent = hearts('def');
 
+  // catastrophe banner
+  const cb = document.getElementById('cata-banner');
+  if(G.cata){ cb.style.display='flex'; cb.innerHTML = `<span style="font-size:22px">${G.cata.icon}</span><span><b style="color:#ff7a6a">${G.cata.name}</b> — ${G.cata.head} <span style="color:#d8a;font-size:10px">(this round)</span></span>`; }
+  else cb.style.display='none';
+
+  allocControl('atk'); allocControl('def');
   arenaSlot('atk'); arenaSlot('def');
   stackList('atk'); stackList('def');
 
@@ -767,12 +970,11 @@ function renderClash(){
   document.getElementById('clash-outcome').innerHTML = G.outcome||'';
 
   let prompt = '';
-  if(G.step==='atk') prompt = '⚔️ Attacker: choose a strategy to play.';
-  else if(G.step==='def') prompt = '🛡️ Defender: you\'ve seen the attack — choose your response.';
-  else if(G.step==='ready') prompt = '⚡ Both cards committed — press Resolve.';
+  if(G.step==='atk') prompt = '⚔️ Attacker: set energy, then play a strategy.';
+  else if(G.step==='def') prompt = '🛡️ Defender: you saw the attack — set energy and respond.';
+  else if(G.step==='ready') prompt = '⚡ Both committed — Resolve (each rolls the Selection Die).';
   document.getElementById('turn-prompt').textContent = prompt;
 
-  // mid-battle options
   const wBtn = document.getElementById('opt-weirdo');
   wBtn.style.display = (G.round>2 && !G.weirdoUsed && !G.winner) ? 'inline-block' : 'none';
   const mBtn = document.getElementById('opt-muster');
@@ -789,26 +991,28 @@ function declareConcede(){
 
 function openWeirdoModal(){
   const grid = document.getElementById('wgrid');
-  grid.innerHTML = WEIRDOS.map(w=>{
-    const pow = G.battleType==='eat'? w.off : w.rep;
-    return `<button class="w-btn" onclick="summonWeirdo(${w.roll-1})">
+  grid.innerHTML = Object.keys(WEIRDO_STACKS).map(roll=>{
+    const w = WEIRDO_STACKS[roll];
+    const cards = w.cards.map(c=>{
+      const pow = G.battleType==='eat'? c.off : c.rep;
+      return `${c.art} ${c.n} (P${pow})`;
+    }).join('<br>');
+    return `<button class="w-btn" onclick="summonWeirdo(${roll})">
       <div class="wb-head">${w.art}</div>
       <div class="wb-name">${w.n}</div>
-      <div class="wb-roll">Roll ${w.roll} · Weirdo Vault</div>
-      <div class="wb-stats">PWR ${pow} · ADA ${w.ada} · DEF ${w.def}</div>
-      <div class="wb-spec">${w.spec}</div>
+      <div class="wb-roll">Brings a 3-card stack</div>
+      <div class="wb-spec">${cards}</div>
     </button>`;
   }).join('');
   document.getElementById('weirdo-overlay').className = 'overlay open';
 }
 function closeWeirdoModal(){ document.getElementById('weirdo-overlay').className = 'overlay'; }
-function summonWeirdo(idx){
+function summonWeirdo(roll){
   closeWeirdoModal();
   G.weirdoUsed = true;
-  const w = WEIRDOS[idx];
-  const wCard = {id:'weirdo_'+w.roll, n:w.n, art:w.art, off:w.off, def:w.def, rep:w.rep, ada:w.ada, mov:w.mov, ter:[], rs:0, fs:0, spec:w.spec};
-  G.stack.atk.push(mkInst(wCard, true));
-  addLog(`🧬 Attacker summons ${w.art} ${w.n} into their stack!`);
+  const w = WEIRDO_STACKS[roll];
+  w.cards.forEach(c=>{ G.stack.atk.push(mkInst({...c, t:99, rs:0, fs:0}, true)); });
+  addLog(`🧬 Attacker summons ${w.art} ${w.n} — its ${w.cards.length}-card stack joins the fight!`);
   renderClash();
 }
 
@@ -924,7 +1128,7 @@ function quickSkirmish(autoStart){
 function rematchRandom(){ resetGame(); quickSkirmish(true); }
 
 function resetGame(){
-  G = {battleType:null,terrain:null,round:1,step:'atk',life:{atk:START_LIFE,def:START_LIFE},stack:{atk:[],def:[]},played:{atk:null,def:null},weirdoUsed:false,musterUsed:false,winner:null,outcome:'',log:[]};
+  G = freshG();
   atkSelected.clear(); defSelected.clear();
   document.getElementById('phase-result').style.display='none';
   document.getElementById('phase-setup').style.display='block';
