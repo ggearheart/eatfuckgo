@@ -1015,7 +1015,9 @@ function resolveClash(){
 // ─────────────────────────────────────────
 function hearts(side){
   const n = Math.max(0, G.life[side]);
-  return '❤️'.repeat(Math.min(n,12)) + (n>START_LIFE?' +'+(n-START_LIFE):'🤍'.repeat(Math.max(0,START_LIFE-n)));
+  const full = G.battleType==='eat' ? '🍩' : '🥚';   // donuts vs gonads (eggs)
+  const empty = '◯';
+  return full.repeat(Math.min(n,12)) + (n>START_LIFE?' +'+(n-START_LIFE):empty.repeat(Math.max(0,START_LIFE-n)));
 }
 const KW_COLORS = {ambush:'#7a4800',venom:'#7a1010',range:'#1a5a80',pack:'#1e7a40',swarm:'#7a5a10',tough:'#5a4a38'};
 function kwTags(card){
