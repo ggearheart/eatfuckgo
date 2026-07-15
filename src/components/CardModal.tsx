@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { motion } from 'framer-motion';
 import { CardArt, KwTags } from './CardArt';
+import { ModChips } from './ModChips';
 import { BOARDS, kwOf } from '../engine/data';
 import { diceProfile, expHits, verdict, deployTurn } from '../engine/engine';
 import type { State } from '../engine/engine';
@@ -50,8 +51,8 @@ export function CardModal({ state, side, idx, onClose, onDeploy }: {
         </div>
         <div className="text-[12px] leading-relaxed mt-2 rounded-lg p-2 bg-white border-2" style={{ borderColor: vColor }}>
           <b style={{ color: vColor }}>This round vs {BOARDS[state.terrain].name} · {sc}: {vLabel}</b><br />
-          Rolls <b>{p.dice} dice</b>, hits on <b>{p.hitOn}+</b> → expected <b>{expHits(p).toFixed(1)} hits</b>.<br />
-          <span className="text-neutral-500 text-[10px]">{p.parts.join(' · ')}</span>
+          Rolls <b>{p.dice} dice</b>, hits on <b>{p.hitOn}+</b> → expected <b>{expHits(p).toFixed(1)} hits</b>.
+          <div className="mt-1.5"><ModChips parts={p.parts} hideBase={false} /></div>
         </div>
         <div className="mt-3 flex gap-2 justify-end">
           {canDeploy && (

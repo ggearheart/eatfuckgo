@@ -8,7 +8,9 @@ import {
 
 export interface Inst { card: any; adapt: number; exhausted: boolean; isWeirdo: boolean; toughUsed?: boolean }
 export type Step = 'catacheck' | 'scenario' | 'p1' | 'p2' | 'ready' | 'over';
-export interface Profile { dice: number; hitOn: number; power: number; parts: string[]; native: boolean; reroll: boolean; first: boolean }
+export type PartSrc = 'base' | 'terrain' | 'scenario' | 'cata' | 'energy' | 'lineage' | 'keyword';
+export interface Part { t: string; src: PartSrc }
+export interface Profile { dice: number; hitOn: number; power: number; parts: Part[]; native: boolean; reroll: boolean; first: boolean }
 export interface Pool { rolls: { r: number; h: boolean; r2?: number }[]; hits: number }
 export interface LastRoll { aP: Profile; dP: Profile; a: Pool; d: Pool; aHits: number; dHits: number; aCard: any; dCard: any }
 export interface State {
@@ -90,41 +92,44 @@ export function diceProfile(s: State, inst: Inst, side: Side | null, oppCard: an
   const c = inst.card, pw = basePower(inst, s.battleType);
   let dice = Math.max(1, Math.ceil(pw / 2) + 1);
   let hitOn = Math.max(2, Math.min(6, 6 - Math.floor((c.ada || 0) / 3)));
-  const parts = [`${dice} dice (power ${pw})`, `hits ${hitOn}+ (ADA ${c.ada})`];
+  const parts: Part[] = [];
+  const add = (t: string, src: Part['src']) => parts.push({ t, src });
+  add(`${dice} dice (power ${pw})`, 'base');
+  add(`hits ${hitOn}+ (ADA ${c.ada})`, 'base');
   let reroll = false, first = false;
   const tf = TERRAIN_FX[s.terrain] || {};
   const native = (c.ter || []).includes(s.terrain);
-  if (native) { dice += 1; parts.push('+1 die native'); }
-  else if (tf.nonNative) { dice -= 1; parts.push('−1 die non-native'); }
+  if (native) { dice += 1; add('+1 die native', 'terrain'); }
+  else if (tf.nonNative) { dice -= 1; add('−1 die non-native', 'terrain'); }
   const meta = side ? (s.alloc[side].meta || 0) : 0;
-  if (meta) { dice += meta; parts.push(`+${meta} dice metabolize`); }
+  if (meta) { dice += meta; add(`+${meta} dice metabolize`, 'energy'); }
   if (side) {
     let lin = 0;
     s.stack[side].forEach((o) => { if (o !== inst && o.card.t < c.t && (o.card.ter || []).some((t: string) => (c.ter || []).includes(t))) lin++; });
     lin = Math.min(CFG.lineageMax, lin);
-    if (lin) { const d = Math.min(2, Math.ceil(lin / 2)); dice += d; parts.push(`+${d} die lineage`); }
+    if (lin) { const d = Math.min(2, Math.ceil(lin / 2)); dice += d; add(`+${d} die lineage`, 'lineage'); }
   }
   if (hasKW(c, 'pack') && side) {
     let pk = Math.min(CFG.packMax, s.stack[side].filter((o) => o !== inst).length) + (tf.packBonus ? 1 : 0);
-    if (pk) { dice += Math.min(4, pk); parts.push(`+${Math.min(4, pk)} dice pack`); }
-    reroll = true; parts.push('rerolls misses (pack)');
+    if (pk) { dice += Math.min(4, pk); add(`+${Math.min(4, pk)} dice pack`, tf.packBonus ? 'terrain' : 'keyword'); }
+    reroll = true; add('rerolls misses (pack)', 'keyword');
   }
   if (hasKW(c, 'ambush')) {
-    if (tf.ambushOff) parts.push('ambush negated (open)');
-    else if (oppCard && (oppCard.mov || 1) >= 4) parts.push('ambush negated (fast prey)');
-    else { const ab = 2 + (tf.ambushBonus ? 1 : 0); dice += ab; parts.push(`+${ab} dice ambush`); }
+    if (tf.ambushOff) add('ambush negated (open terrain)', 'terrain');
+    else if (oppCard && (oppCard.mov || 1) >= 4) add('ambush negated (fast prey)', 'keyword');
+    else { const ab = 2 + (tf.ambushBonus ? 1 : 0); dice += ab; add(`+${ab} dice ambush`, tf.ambushBonus ? 'terrain' : 'keyword'); }
   }
   if (hasKW(c, 'range')) {
-    if (tf.blockRange) parts.push('range blocked (cover)');
-    else { dice += 1; first = true; parts.push('+1 die range · strikes first'); }
+    if (tf.blockRange) add('range blocked (cover)', 'terrain');
+    else { dice += 1; first = true; add('+1 die range · strikes first', 'keyword'); }
   }
-  if (hasKW(c, 'venom') && tf.venomBonus) { dice += 1; parts.push('+1 die venom'); }
-  if (tf.aquaticBonus && isAquatic(c)) { dice += 1; parts.push('+1 die aquatic'); }
-  if (tf.fastBonus && (c.mov || 1) >= 4) { dice += 1; parts.push('+1 die fast'); }
-  if (tf.swarmPenalty && hasKW(c, 'swarm')) { dice -= 1; parts.push('−1 die swarm'); }
-  if (tf.toughBonus && hasKW(c, 'tough')) { dice += 1; parts.push('+1 die tough'); }
-  if (s.scenario) { const sc = s.scenario.fx(c); if (sc.dice) { dice += sc.dice; parts.push(`${sc.dice > 0 ? '+' : ''}${sc.dice} dice ${s.scenario.name}`); } if (sc.thr) { hitOn += sc.thr; parts.push(`${sc.thr > 0 ? '+' : ''}${sc.thr} to hit ${s.scenario.name}`); } }
-  if (s.cata) { const cm = s.cata.fx(c); if (cm) { const dd = cm > 0 ? Math.ceil(cm / 2) : -Math.ceil(-cm / 2); if (dd) { dice += dd; parts.push(`${dd > 0 ? '+' : ''}${dd} dice ${s.cata.name}`); } } }
+  if (hasKW(c, 'venom') && tf.venomBonus) { dice += 1; add('+1 die venom (terrain)', 'terrain'); }
+  if (tf.aquaticBonus && isAquatic(c)) { dice += 1; add('+1 die aquatic', 'terrain'); }
+  if (tf.fastBonus && (c.mov || 1) >= 4) { dice += 1; add('+1 die fast', 'terrain'); }
+  if (tf.swarmPenalty && hasKW(c, 'swarm')) { dice -= 1; add('−1 die swarm', 'terrain'); }
+  if (tf.toughBonus && hasKW(c, 'tough')) { dice += 1; add('+1 die tough', 'terrain'); }
+  if (s.scenario) { const sc = s.scenario.fx(c); if (sc.dice) { dice += sc.dice; add(`${sc.dice > 0 ? '+' : ''}${sc.dice} dice · ${s.scenario.name}`, 'scenario'); } if (sc.thr) { hitOn += sc.thr; add(`${sc.thr > 0 ? '+' : ''}${sc.thr} to hit · ${s.scenario.name}`, 'scenario'); } }
+  if (s.cata) { const cm = s.cata.fx(c); if (cm) { const dd = cm > 0 ? Math.ceil(cm / 2) : -Math.ceil(-cm / 2); if (dd) { dice += dd; add(`${dd > 0 ? '+' : ''}${dd} dice · ${s.cata.name}`, 'cata'); } } }
   dice = Math.max(1, dice); hitOn = Math.max(2, Math.min(6, hitOn));
   return { dice, hitOn, power: pw, parts, native, reroll, first };
 }

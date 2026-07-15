@@ -10,6 +10,7 @@ import {
   roller, firstPicker, secondPicker, deployTurn, diceProfile, expHits, sideName,
 } from '../engine/engine';
 import { CardArt, KwTags } from '../components/CardArt';
+import { ModChips, ModLegend } from '../components/ModChips';
 import { LifeTrack } from '../components/LifeTrack';
 import { DicePools } from '../components/DicePools';
 import { CardModal } from '../components/CardModal';
@@ -121,6 +122,8 @@ export function BattleScreen({ state: s, dispatch, onNewRandom, onExit }: {
           <ArenaSlot side="def" s={s} onInspect={setInspect} />
         </div>
 
+        {(s.played.atk != null || s.played.def != null || s.pending.atk != null || s.pending.def != null) && <ModLegend />}
+
         {/* Dice pools */}
         <AnimatePresence>{s.lastRoll && <div className="mb-2"><DicePools roll={s.lastRoll} /></div>}</AnimatePresence>
 
@@ -223,7 +226,7 @@ function ArenaSlot({ side, s, onInspect }: { side: Side; s: State; onInspect: (v
       <div className="text-[12px] font-black leading-tight mt-1">{inst.card.n}{inst.isWeirdo ? ' 🧬' : ''}</div>
       <div className="text-2xl font-black">🎲{p.dice}</div>
       <div className="text-[10px] font-extrabold text-neutral-500">hits on {p.hitOn}+ · ~{expHits(p).toFixed(1)} hits</div>
-      <div className="text-[9px] text-neutral-500 leading-tight mt-0.5">{p.parts.join(' · ')}</div>
+      <div className="mt-1 w-full"><ModChips parts={p.parts} /></div>
       <div className="mt-1"><KwTags card={inst.card} /></div>
     </motion.div>
   );
