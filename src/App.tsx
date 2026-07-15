@@ -39,7 +39,8 @@ export default function App() {
         <button onClick={() => start('fk')} className="px-6 py-3 rounded-xl border-2 border-ink bg-fk text-white font-extrabold shadow-comic">🧬 F*CK IT skirmish</button>
         <button onClick={() => start(undefined)} className="px-6 py-3 rounded-xl border-2 border-ink bg-white font-extrabold shadow-comic">🎲 Random</button>
       </div>
-      <a className="mt-8 text-xs text-neutral-500 underline" href="/eatfuckgo/legacy/index.html">view the original prototype →</a>
+      <a href="/eatfuckgo/infographic/" className="mt-7 inline-block px-5 py-2.5 rounded-xl border-2 border-ink bg-white font-extrabold text-sm shadow-comic">📖 How to play — the illustrated guide</a>
+      <a className="mt-6 text-xs text-neutral-500 underline" href="/eatfuckgo/legacy/index.html">view the original prototype →</a>
     </div>
   );
 }

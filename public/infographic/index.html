@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EATFUCKGO — How to Play</title>
+<style>
+:root{--eat:#c4561e;--fk:#7b4fa0;--ink:#1a0e04;--cream:#fef8ec;--card:#fffdf7;--border:#e8ddd0;--muted:#8a7a68;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--cream);line-height:1.55;}
+img{display:block;max-width:100%;}
+.wrap{max-width:1080px;margin:0 auto;padding:0 18px;}
+.display{font-family:'Arial Black',Impact,system-ui,sans-serif;letter-spacing:-.5px;}
+a{color:var(--eat);}
+/* Hero */
+.hero{text-align:center;padding:54px 18px 30px;background:linear-gradient(#fff6e9,#fef8ec);border-bottom:4px solid var(--ink);}
+.hero h1{font-size:clamp(40px,9vw,76px);}
+.hero .eat{color:var(--eat);} .hero .fk{color:var(--fk);}
+.hero p{max-width:640px;margin:14px auto 0;color:#4a3820;font-size:16px;}
+.hero-imgs{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:720px;margin:26px auto 0;}
+.himg{border:3px solid var(--ink);border-radius:14px;overflow:hidden;box-shadow:5px 5px 0 var(--ink);position:relative;}
+.himg img{width:100%;height:200px;object-fit:cover;}
+.himg .cap{position:absolute;left:0;right:0;bottom:0;padding:8px 12px;color:#fff;font-weight:900;font-size:15px;text-shadow:0 1px 4px #000;background:linear-gradient(transparent,rgba(0,0,0,.7));}
+.himg.eatc{border-color:var(--eat);} .himg.fkc{border-color:var(--fk);}
+/* Sections */
+section{padding:44px 0;border-bottom:2px solid var(--border);}
+.kicker{font-size:12px;font-weight:900;letter-spacing:2px;text-transform:uppercase;color:var(--eat);}
+h2{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;}
+.lead{color:#4a3820;max-width:760px;font-size:15px;}
+/* Steps */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:22px;}
+.step{background:var(--card);border:2.5px solid var(--ink);border-radius:14px;padding:16px;box-shadow:4px 4px 0 var(--ink);}
+.step .n{font-size:26px;}
+.step h3{font-size:16px;margin:6px 0 4px;}
+.step p{font-size:13px;color:#4a3820;}
+/* Formula row */
+.formula{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:20px;}
+.fbox{background:#fff;border:2px solid var(--border);border-radius:12px;padding:14px;text-align:center;}
+.fbox .big{font-size:22px;font-weight:900;}
+.fbox small{color:var(--muted);}
+/* Photo cards grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-top:22px;}
+.pc{background:var(--card);border:2.5px solid var(--ink);border-radius:14px;overflow:hidden;box-shadow:3px 3px 0 var(--ink);}
+.pc .ph{height:120px;background:#d8ccb8 center/cover no-repeat;position:relative;display:flex;align-items:center;justify-content:center;font-size:38px;}
+.pc .ph img{width:100%;height:100%;object-fit:cover;}
+.pc .bd{padding:10px 12px;}
+.pc .bd h4{font-size:14px;margin-bottom:3px;}
+.pc .bd p{font-size:12px;color:#4a3820;}
+.tag{display:inline-block;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.5px;color:#fff;padding:1px 6px;border-radius:4px;margin-bottom:5px;}
+.t-eat{background:var(--eat);} .t-fk{background:var(--fk);} .t-cata{background:#c02018;} .t-scn{background:#2a6aa0;} .t-kw{background:#1e7a40;}
+/* life legend */
+.legend{display:flex;gap:24px;flex-wrap:wrap;margin-top:18px;}
+.legend div{background:#fff;border:2px solid var(--border);border-radius:12px;padding:12px 16px;font-size:14px;}
+/* CTA */
+.cta{text-align:center;padding:48px 18px;background:var(--ink);color:#fff;}
+.cta a{display:inline-block;margin:8px 6px 0;padding:14px 26px;border-radius:12px;font-weight:900;text-decoration:none;border:3px solid #000;box-shadow:4px 4px 0 #000;}
+.cta .play{background:var(--eat);color:#fff;} .cta .proto{background:#fff;color:var(--ink);}
+/* credits */
+.credits{font-size:11px;color:var(--muted);padding:26px 0;}
+.credits h3{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--ink);margin-bottom:8px;}
+.credits ul{list-style:none;columns:2;column-gap:24px;}
+.credits li{margin-bottom:4px;break-inside:avoid;}
+@media(max-width:560px){.hero-imgs{grid-template-columns:1fr;}.credits ul{columns:1;}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <h1 class="display"><span class="eat">EAT</span> <span class="fk">FUCK</span> GO</h1>
+    <p>Every organism faces one budget with two demands: <b>EAT</b> — survive and out-compete — versus <b>F*CK</b> — reproduce and out-multiply. This game is a duel between those two forces of evolution, decided by <b>terrain</b>, a rolled <b>scenario</b>, and the <b>dice</b>.</p>
+    <div class="hero-imgs">
+      <div class="himg eatc"><img data-slug="eat" alt="predation"><div class="cap">🦷 EAT IT — acquire resources</div></div>
+      <div class="himg fkc"><img data-slug="fk" alt="reproduction"><div class="cap">🧬 F*CK IT — propagate genes</div></div>
+    </div>
+  </div>
+</header>
+
+<section><div class="wrap">
+  <div class="kicker">The core idea</div>
+  <h2>Finite energy, two strategies</h2>
+  <p class="lead">Life-history theory in a card game: energy spent eating can't be spent breeding. Each round you split your energy on a slider — <b>🦷 Fight</b> turns energy into combat dice, <b>🧬 Breed</b> turns it into life and offspring. Pour it all into winning the clash, or invest in a swarm that outlasts your rival. That tension is the whole game.</p>
+  <div class="formula">
+    <div class="fbox"><div class="big">🦷 EAT IT</div><small>Power = a card's <b>OFF</b> stat</small></div>
+    <div class="fbox"><div class="big">🧬 F*CK IT</div><small>Power = a card's <b>REP</b> stat</small></div>
+    <div class="fbox"><div class="big">⚡ Energy 3</div><small>split Fight / Breed each round</small></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="kicker">A round, step by step</div>
+  <h2>How the story plays out</h2>
+  <div class="steps">
+    <div class="step"><div class="n">①</div><h3>Terrain sets the stage</h3><p>You fight over one biome for the whole battle. It buffs its natives and bends every rule (blocks rangestrike, negates ambush, and more).</p></div>
+    <div class="step"><div class="n">②</div><h3>Scenario is rolled</h3><p>Players take turns rolling 1d6 for a transient condition — abundance, darkness, crowding… — that tilts this round's dice.</p></div>
+    <div class="step"><div class="n">③</div><h3>Choose your strategy</h3><p>Taking turns, each player deploys the card best suited to this terrain-scenario combo. Preview it, swap freely, then commit.</p></div>
+    <div class="step"><div class="n">🎲</div><h3>Resolve with dice</h3><p>Each strategy rolls a pool of dice; whoever lands more hits wins the clash. The loser drops a life.</p></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="kicker">The clash</div>
+  <h2>How a face-off is decided</h2>
+  <p class="lead">A card's <b>Power</b> becomes its number of <b>dice</b>; its <b>ADA</b> (adaptability) sets how easily each die <b>hits</b>. Terrain, scenario, catastrophe and keywords then add or remove dice. Both sides roll — most hits wins.</p>
+  <div class="formula">
+    <div class="fbox"><div class="big">Power → 🎲 dice</div><small>more power = more dice thrown</small></div>
+    <div class="fbox"><div class="big">ADA → hit on N+</div><small>smarter = easier hits</small></div>
+    <div class="fbox"><div class="big">+ Fight energy</div><small>each point = +1 die</small></div>
+    <div class="fbox"><div class="big">Most hits wins</div><small>loser loses 1 life</small></div>
+  </div>
+  <div class="legend">
+    <div>🍩 <b>Donuts</b> = life in an <span style="color:var(--eat);font-weight:800">EAT IT</span> battle</div>
+    <div>🥚 <b>Gonads</b> = life in a <span style="color:var(--fk);font-weight:800">F*CK IT</span> battle</div>
+    <div>Run out → your agent dies.</div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="kicker">Keyword counters</div>
+  <h2>Biological superpowers</h2>
+  <p class="lead">Some strategies carry a trait that beats or breaks others — the game's rock-paper-scissors.</p>
+  <div class="grid" id="grid-kw"></div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="kicker">Terrains</div>
+  <h2>The stage bends the rules</h2>
+  <p class="lead">Where you fight changes who wins. Each biome buffs its natives and enables or disables whole tactics.</p>
+  <div class="grid" id="grid-terrain"></div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="kicker">Scenarios</div>
+  <h2>The moment's demand (rolled each round)</h2>
+  <p class="lead">A 1d6 scenario is the round's twist — it rewards some strategies and punishes others.</p>
+  <div class="grid" id="grid-scenario"></div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="kicker">Catastrophes</div>
+  <h2>Round 3: roll matched dice, and the world changes</h2>
+  <p class="lead">At round 3 both players roll a die. Match the number and a catastrophe strikes — a global upheaval that warps the rest of the battle, often flipping which strategies win.</p>
+  <div class="grid" id="grid-cata"></div>
+</div></section>
+
+<div class="cta">
+  <div class="display" style="font-size:26px;margin-bottom:6px;">Ready to duel?</div>
+  <div style="opacity:.8;font-size:14px;">Pick EAT or F*CK, read the terrain, and out-evolve your rival.</div>
+  <a class="play" href="/eatfuckgo/">🎮 Play EATFUCKGO</a>
+  <a class="proto" href="/eatfuckgo/legacy/index.html">📜 Original prototype</a>
+</div>
+
+<div class="wrap credits">
+  <h3>Image credits</h3>
+  <p style="margin-bottom:8px;">Photographs from Wikimedia Commons under public-domain / Creative Commons licenses. Please see each source for exact terms.</p>
+  <ul id="credits-list"></ul>
+</div>
+
+<script>
+const KW=[
+ ['ambush','t-kw','🐊 Ambush','Lies in wait — huge bonus versus slow prey, but useless in open water or against fast movers.'],
+ ['venom','t-kw','🐍 Venom','A wound is a death sentence: on a win (or tie) it drains an extra life.'],
+ ['range','t-kw','🎯 Rangestrike','Strikes from a distance and goes first — but dense cover (forest, cave) blocks it.'],
+ ['pack','t-kw','🐺 Pack','Cooperative hunting: more allies in your stack = more dice, and it rerolls misses.'],
+ ['swarm','t-kw','🐟 Swarm','r-selected flood: weak alone, but never tires — it can be played every single round.'],
+ ['tough','t-kw','🪨 Tough','Built to last: shrugs off its first defeat with no life lost.'],
+];
+const TER=[
+ ['vent','🌋 Volcanic Vent','Life without sun. Natives get a big power boost; chemosynthesis thrives.'],
+ ['reef','🐚 Shallow Sea','Sunlit reefs: aquatic strategies gain skill; filter feeders bloom.'],
+ ['ocean','🌊 Open Ocean','Rewards speed and range; ambush is useless with nowhere to hide.'],
+ ['ice','❄️ Ice Age','The cold culls r-strategists; the tough and cold-adapted endure.'],
+ ['savanna','🌾 Savannah','Open ground: pack hunters shine; ambush has nowhere to lurk.'],
+ ['forest','🌲 Canopy Forest','Dense cover blocks rangestrike; ambush gains the edge.'],
+ ['desert','🏜️ Desert','Ambush and venom rule; broadcast spawners bake and die.'],
+ ['cave','🕳️ Deep Cave','Darkness blinds sight-hunters; rangestrike is blocked.'],
+ ['swamp','🌿 Primordial Swamp','The cradle of multicellularity; aquatic feeders do well.'],
+ ['__lab','⚗️ GM Lab','A chaotic lab hex — a wildcard mutation each clash.'],
+];
+const SCN=[
+ ['bloom','☀️ Abundance','Plenty floods in — breeders and swarmers gorge; lone specialists gain little.'],
+ ['drought','🥀 Scarcity','Lean times reward the dormant and the frugal; big metabolisms starve.'],
+ ['cave','🌙 Total Darkness','Light fails — echolocators and electro-hunters thrive; sight-hunters stumble.'],
+ ['eat','🐾 Predator Influx','Danger everywhere — the armored shrug it off; the fragile are picked apart.'],
+ ['flock','👥 Crowding','Safety in numbers: cooperative, social strategies dominate; loners are jostled out.'],
+ ['wildfire','🌪️ Upheaval','Chaos scrambles the field; flexible generalists cope while everything wobbles.'],
+];
+const CAT=[
+ ['asteroid','☄️ Mass Extinction','The big and specialized die first; humble swarmers and the tough inherit the earth.'],
+ ['ice','🧊 Ice Snap','Cold-blooded plans freeze — anything not cold-adapted suffers.'],
+ ['asteroid','🌑 Asteroid Winter','No sun, no sight — rangestrike and photosynthesis fail.'],
+ ['ocean','🟢 Ocean Anoxia','The water suffocates; aquatic strategies collapse.'],
+ ['wildfire','🔥 Hyperthermal Spike','Everything cooks except the vent-dwellers.'],
+ ['bloom','🌸 Resource Bloom','Sudden abundance — every reproduce effect doubles this round.'],
+];
+function card(slug,tagCls,tagText,title,body){
+  return `<div class="pc"><div class="ph" data-ph="${slug}"><span class="fallback">${title.split(' ')[0]}</span></div>`+
+         `<div class="bd"><span class="tag ${tagCls}">${tagText}</span><h4>${title}</h4><p>${body}</p></div></div>`;
+}
+document.getElementById('grid-kw').innerHTML = KW.map(k=>card(k[0],'t-kw','Keyword',k[2],k[3])).join('');
+document.getElementById('grid-terrain').innerHTML = TER.map(t=>card(t[0],'t-eat','Terrain',t[1],t[2])).join('');
+document.getElementById('grid-scenario').innerHTML = SCN.map(s=>card(s[0],'t-scn','Scenario',s[1],s[2])).join('');
+document.getElementById('grid-cata').innerHTML = CAT.map(c=>card(c[0],'t-cata','Catastrophe',c[1],c[2])).join('');
+
+fetch('img/credits.json').then(r=>r.json()).then(map=>{
+  const setImg=(el,slug)=>{ const c=map[slug]; if(!c){return;} const img=new Image(); img.alt=slug; img.onload=()=>{ el.innerHTML=''; el.appendChild(img); }; img.src='img/'+c.file; };
+  document.querySelectorAll('img[data-slug]').forEach(el=>{ const c=map[el.dataset.slug]; if(c){ el.src='img/'+c.file; } });
+  document.querySelectorAll('.ph[data-ph]').forEach(el=>setImg(el, el.dataset.ph));
+  // credits
+  const seen={}; const list=[];
+  Object.entries(map).forEach(([slug,c])=>{ const key=c.title||c.file; if(seen[key])return; seen[key]=1;
+    list.push(`<li><a href="${c.source}" target="_blank" rel="noopener">${(c.title||'').replace('File:','')}</a> — ${c.artist} (${c.license})</li>`); });
+  document.getElementById('credits-list').innerHTML = list.join('');
+}).catch(()=>{});
+</script>
+</body>
+</html>

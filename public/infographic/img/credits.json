@@ -1,0 +1,114 @@
+{
+  "eat": {
+    "file": "eat.jpg",
+    "title": "File:Cheetah chasing Thompsons gazelle crop.jpg",
+    "artist": "Profberger at English Wikipedia",
+    "license": "CC BY 2.5",
+    "source": "https://commons.wikimedia.org/wiki/File:Cheetah_chasing_Thompsons_gazelle_crop.jpg"
+  },
+  "fk": {
+    "file": "fk.jpg",
+    "title": "File:Spawning Chinook salmon at Entiat (51855458397).jpg",
+    "artist": "USFWS Pacific",
+    "license": "Public domain",
+    "source": "https://commons.wikimedia.org/wiki/File:Spawning_Chinook_salmon_at_Entiat_(51855458397).jpg"
+  },
+  "range": {
+    "file": "range.png",
+    "title": "File:Bat flying at night.png",
+    "artist": "see Source",
+    "license": "CC BY 2.5",
+    "source": "https://commons.wikimedia.org/wiki/File:Bat_flying_at_night.png"
+  },
+  "ocean": {
+    "file": "ocean.jpg",
+    "title": "File:Underwater (175026579).jpeg",
+    "artist": "Baruc Acosta",
+    "license": "CC BY 3.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Underwater_(175026579).jpeg"
+  },
+  "ice": {
+    "file": "ice.jpg",
+    "title": "File:Glacier with ice rocks on ground.jpg",
+    "artist": "U.S. Fish and Wildlife Service",
+    "license": "Public domain",
+    "source": "https://commons.wikimedia.org/wiki/File:Glacier_with_ice_rocks_on_ground.jpg"
+  },
+  "savanna": {
+    "file": "savanna.jpg",
+    "title": "File:Acacia Kenya Savannah.jpg",
+    "artist": "Kev Moses",
+    "license": "CC BY 2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Acacia_Kenya_Savannah.jpg"
+  },
+  "forest": {
+    "file": "forest.jpg",
+    "title": "File:Rainforest Aerial Garden - Flickr - Eye Steel Film.jpg",
+    "artist": "Eye Steel Film from Canada",
+    "license": "CC BY 2.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Rainforest_Aerial_Garden_-_Flickr_-_Eye_Steel_Film.jpg"
+  },
+  "desert": {
+    "file": "desert.jpg",
+    "title": "File:Dunes, D\u00e9sert du Thar.jpg",
+    "artist": "Cl\u00e9ment Bardot",
+    "license": "CC BY-SA 4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Dunes,_D%C3%A9sert_du_Thar.jpg"
+  },
+  "cave": {
+    "file": "cave.jpg",
+    "title": "File:Shizushi-shonyudo entrance.JPG",
+    "artist": "Saigen Jiro",
+    "license": "CC0",
+    "source": "https://commons.wikimedia.org/wiki/File:Shizushi-shonyudo_entrance.JPG"
+  },
+  "swamp": {
+    "file": "swamp.jpg",
+    "title": "File:Bald cypress trees in swamp - DPLA - 2daefd690acacd0bb424bb623a49095b.jpg",
+    "artist": "Department of the Interior. U.S. Fish and Wildlife Service. National Conservation Training Center. 10/1997-8888",
+    "license": "Public domain",
+    "source": "https://commons.wikimedia.org/wiki/File:Bald_cypress_trees_in_swamp_-_DPLA_-_2daefd690acacd0bb424bb623a49095b.jpg"
+  },
+  "drought": {
+    "file": "drought.jpg",
+    "title": "File:Drought.jpg",
+    "artist": "Tomas Castelazo",
+    "license": "CC BY 3.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Drought.jpg"
+  },
+  "wildfire": {
+    "file": "wildfire.jpg",
+    "title": "File:Waldbrand-Bodenfeuer.jpg",
+    "artist": "Tilo",
+    "license": "CC BY-SA 3.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Waldbrand-Bodenfeuer.jpg"
+  },
+  "asteroid": {
+    "file": "asteroid.png",
+    "title": "File:Schematic-of-the-DART-mission-shows-the-impact-on-the-moonlet-of-asteroid-(65803)-Didymos-fr.png",
+    "artist": "NASA",
+    "license": "Public domain",
+    "source": "https://commons.wikimedia.org/wiki/File:Schematic-of-the-DART-mission-shows-the-impact-on-the-moonlet-of-asteroid-(65803)-Didymos-fr.png"
+  },
+  "bloom": {
+    "file": "bloom.jpg",
+    "title": "File:Baltic blooms ESA21514635.jpeg",
+    "artist": "European Space Agency",
+    "license": "Attribution",
+    "source": "https://commons.wikimedia.org/wiki/File:Baltic_blooms_ESA21514635.jpeg"
+  },
+  "flock": {
+    "file": "flock.jpg",
+    "title": "File:Murmuration 11-2025.jpg",
+    "artist": "Skander zarrad",
+    "license": "CC BY-SA 4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Murmuration_11-2025.jpg"
+  },
+  "vent": {
+    "file": "vent.jpg",
+    "title": "File:BlackSmoker.jpg",
+    "artist": "W.R. Normark, Dudley Foster",
+    "license": "Public domain",
+    "source": "https://commons.wikimedia.org/wiki/File:BlackSmoker.jpg"
+  }
+}
