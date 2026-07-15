@@ -61,6 +61,27 @@ h2{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;}
 .credits ul{list-style:none;columns:2;column-gap:24px;}
 .credits li{margin-bottom:4px;break-inside:avoid;}
 @media(max-width:560px){.hero-imgs{grid-template-columns:1fr;}.credits ul{columns:1;}}
+/* strategy + weirdo cards */
+.scards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:18px;}
+.scard{background:var(--card);border:2.5px solid var(--ink);border-radius:14px;padding:10px;box-shadow:3px 3px 0 var(--ink);text-align:center;}
+.scard.eat{border-color:var(--eat);} .scard.fk{border-color:var(--fk);}
+.scard-art{width:84px;height:84px;margin:0 auto 6px;border:3px solid var(--ink);border-radius:12px;overflow:hidden;box-shadow:2px 2px 0 var(--ink);}
+.scard-art svg{width:100%;height:100%;display:block;}
+.medallion{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;background:#efe6d6;}
+.scard-name{font-size:12.5px;font-weight:900;line-height:1.15;}
+.scard-tier{font-size:10px;color:var(--muted);margin:2px 0 5px;}
+.scard-stats{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-bottom:5px;}
+.scard-stats span{font-size:9px;font-weight:800;background:#f2ead9;border-radius:4px;padding:1px 5px;color:#5a4830;}
+.scard-stats span.pow{background:#ffe1b0;color:#7a4800;}
+.kwtag{display:inline-block;font-size:8px;font-weight:900;text-transform:uppercase;color:#fff;background:#1e7a40;border-radius:3px;padding:1px 5px;margin:1px;}
+.weirdo{background:#f3ecfa;border:2.5px solid var(--fk);border-radius:14px;padding:12px;margin-top:14px;box-shadow:3px 3px 0 var(--ink);}
+.weirdo-hd{font-weight:900;font-size:16px;margin-bottom:8px;}
+.weirdo-hd span{font-size:11px;font-weight:600;color:var(--muted);}
+.wcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
+.wcard{background:#fff;border:2px solid var(--border);border-radius:10px;padding:8px;text-align:center;}
+.wcard .medallion{width:48px;height:48px;margin:0 auto 5px;border:2px solid var(--ink);border-radius:10px;font-size:24px;background:#efe6f7;}
+.wc-n{font-size:11px;font-weight:800;}
+.wc-s{font-size:9px;color:var(--muted);margin:2px 0 3px;}
 </style>
 </head>
 <body>
@@ -143,6 +164,23 @@ h2{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;}
   <div class="grid" id="grid-cata"></div>
 </div></section>
 
+<section><div class="wrap">
+  <div class="kicker">The strategy decks</div>
+  <h2>Every strategy card</h2>
+  <p class="lead">Attackers pick a deck; both sides field only that deck. In an <b style="color:var(--eat)">EAT IT</b> battle a card's <b>OFF</b> is its Power (how many dice it throws); in a <b style="color:var(--fk)">F*CK IT</b> battle its <b>REP</b> is. <b>ADA</b> sets how easily dice hit, <b>DEF</b> breaks ties, and <b>MOV</b> + native terrain feed the keywords. (Art is placeholder cartoon — real images to come.)</p>
+  <h3 class="display" style="margin-top:24px;color:var(--eat);">🦷 EAT IT — resource acquisition</h3>
+  <div class="scards" id="grid-eat"></div>
+  <h3 class="display" style="margin-top:30px;color:var(--fk);">🧬 F*CK IT — reproduction</h3>
+  <div class="scards" id="grid-fk"></div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="kicker">Other cards</div>
+  <h2>The Weirdos — wildcard mini-legions</h2>
+  <p class="lead">After round 2 the attacker may summon a Weirdo. It doesn't fight alone — it brings its own three-card signature stack into the battle.</p>
+  <div id="grid-weirdo"></div>
+</div></section>
+
 <div class="cta">
   <div class="display" style="font-size:26px;margin-bottom:6px;">Ready to duel?</div>
   <div style="opacity:.8;font-size:14px;">Pick EAT or F*CK, read the terrain, and out-evolve your rival.</div>
@@ -156,8 +194,9 @@ h2{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;}
   <ul id="credits-list"></ul>
 </div>
 
+<script src="cards-data.js"></script>
 <script>
-const KW=[
+const KWROWS=[
  ['ambush','t-kw','🐊 Ambush','Lies in wait — huge bonus versus slow prey, but useless in open water or against fast movers.'],
  ['venom','t-kw','🐍 Venom','A wound is a death sentence: on a win (or tie) it drains an extra life.'],
  ['range','t-kw','🎯 Rangestrike','Strikes from a distance and goes first — but dense cover (forest, cave) blocks it.'],
@@ -197,10 +236,36 @@ function card(slug,tagCls,tagText,title,body){
   return `<div class="pc"><div class="ph" data-ph="${slug}"><span class="fallback">${title.split(' ')[0]}</span></div>`+
          `<div class="bd"><span class="tag ${tagCls}">${tagText}</span><h4>${title}</h4><p>${body}</p></div></div>`;
 }
-document.getElementById('grid-kw').innerHTML = KW.map(k=>card(k[0],'t-kw','Keyword',k[2],k[3])).join('');
+document.getElementById('grid-kw').innerHTML = KWROWS.map(k=>card(k[0],'t-kw','Keyword',k[2],k[3])).join('');
 document.getElementById('grid-terrain').innerHTML = TER.map(t=>card(t[0],'t-eat','Terrain',t[1],t[2])).join('');
 document.getElementById('grid-scenario').innerHTML = SCN.map(s=>card(s[0],'t-scn','Scenario',s[1],s[2])).join('');
 document.getElementById('grid-cata').innerHTML = CAT.map(c=>card(c[0],'t-cata','Catastrophe',c[1],c[2])).join('');
+
+// Strategy decks + weirdos (data from cards-data.js)
+const TCODE={V:'🌋',P:'🌿',S:'🐚',O:'🌊',I:'❄️',A:'🌾',F:'🌲',D:'🏜️',C:'🕳️',G:'⚗️'};
+function stratCard(c,deck){
+  const kws=(KW[c.id]||[]);
+  const ter=(c.ter||[]).map(t=>TCODE[t]||t).join(' ');
+  const art=ART[c.id]||('<div class="medallion">'+c.art+'</div>');
+  const st=(l,v,p)=>`<span class="${p?'pow':''}">${l} ${v}</span>`;
+  return `<div class="scard ${deck}"><div class="scard-art">${art}</div>`+
+    `<div class="scard-name">${c.n}</div>`+
+    `<div class="scard-tier">Tier ${c.t} · ${ter||'—'}</div>`+
+    `<div class="scard-stats">${st('OFF',c.off,deck==='eat')}${st('DEF',c.def)}${st('REP',c.rep,deck==='fk')}${st('ADA',c.ada)}${st('MOV',c.mov)}</div>`+
+    `<div>${kws.map(k=>'<span class="kwtag">'+k+'</span>').join('')}</div></div>`;
+}
+function weirdoGroup(roll){
+  const w=WEIRDO_STACKS[roll];
+  return `<div class="weirdo"><div class="weirdo-hd">${w.art} ${w.n} <span>brings a 3-card stack</span></div>`+
+    `<div class="wcards">${w.cards.map(c=>`<div class="wcard"><div class="medallion">${c.art}</div><div class="wc-n">${c.n}</div>`+
+      `<div class="wc-s">OFF ${c.off} · DEF ${c.def} · REP ${c.rep} · ADA ${c.ada}</div>`+
+      `${(c.kw||[]).map(k=>'<span class="kwtag">'+k+'</span>').join('')}</div>`).join('')}</div></div>`;
+}
+if(typeof EAT!=='undefined'){
+  document.getElementById('grid-eat').innerHTML=EAT.map(c=>stratCard(c,'eat')).join('');
+  document.getElementById('grid-fk').innerHTML=FK.map(c=>stratCard(c,'fk')).join('');
+  document.getElementById('grid-weirdo').innerHTML=Object.keys(WEIRDO_STACKS).map(weirdoGroup).join('');
+}
 
 fetch('img/credits.json').then(r=>r.json()).then(map=>{
   const setImg=(el,slug)=>{ const c=map[slug]; if(!c){return;} const img=new Image(); img.alt=slug; img.onload=()=>{ el.innerHTML=''; el.appendChild(img); }; img.src='img/'+c.file; };
