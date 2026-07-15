@@ -63,7 +63,22 @@ h2{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;}
 @media(max-width:560px){.hero-imgs{grid-template-columns:1fr;}.credits ul{columns:1;}}
 /* strategy + weirdo cards */
 .scards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:18px;}
-.scard{background:var(--card);border:2.5px solid var(--ink);border-radius:14px;padding:10px;box-shadow:3px 3px 0 var(--ink);text-align:center;}
+.scard{position:relative;cursor:pointer;background:var(--card);border:2.5px solid var(--ink);border-radius:14px;padding:10px;box-shadow:3px 3px 0 var(--ink);text-align:center;}
+/* hover / tap tooltip showing the full card */
+.stip{position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);width:250px;max-width:82vw;background:#fff;border:2.5px solid var(--ink);border-radius:14px;box-shadow:5px 5px 0 var(--ink);padding:12px;z-index:40;display:none;text-align:center;}
+.stip::after{content:"";position:absolute;left:50%;top:100%;transform:translateX(-50%);border:9px solid transparent;border-top-color:var(--ink);}
+.scard:hover .stip,.scard.open .stip{display:block;}
+.stip-art{width:96px;height:96px;margin:0 auto 6px;border:3px solid var(--ink);border-radius:12px;overflow:hidden;box-shadow:2px 2px 0 var(--ink);}
+.stip-art svg{width:100%;height:100%;display:block;}
+.stip-name{font-weight:900;font-size:16px;}
+.stip-meta{font-size:10px;color:var(--muted);margin:2px 0 7px;line-height:1.5;}
+.stip-kw{text-align:left;font-size:10px;color:#4a3820;margin:7px 0 2px;line-height:1.5;}
+.stip-kw b{color:#1e7a40;}
+.learn{display:inline-block;margin-top:9px;padding:6px 13px;border:2px solid var(--ink);border-radius:9px;background:var(--fk);color:#fff;font-size:11px;font-weight:900;text-decoration:none;box-shadow:2px 2px 0 var(--ink);}
+.learn:hover{filter:brightness(1.08);}
+.pc .bd .learn{margin-top:9px;background:#2a6aa0;font-size:10px;padding:5px 11px;}
+.wcard .learn{margin-top:6px;font-size:9px;padding:4px 9px;background:var(--fk);}
+.weirdo-hd .learn{margin-top:0;padding:4px 10px;font-size:10px;}
 .scard.eat{border-color:var(--eat);} .scard.fk{border-color:var(--fk);}
 .scard-art{width:84px;height:84px;margin:0 auto 6px;border:3px solid var(--ink);border-radius:12px;overflow:hidden;box-shadow:2px 2px 0 var(--ink);}
 .scard-art svg{width:100%;height:100%;display:block;}
@@ -196,70 +211,92 @@ h2{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;}
 
 <script src="cards-data.js?v=2"></script>
 <script>
+function wikiUrl(t){ return 'https://en.wikipedia.org/wiki/Special:Search?go=Go&search='+encodeURIComponent(t); }
+function learnBtn(t){ return `<a class="learn" href="${wikiUrl(t)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🔎 Learn more ↗</a>`; }
+
 const KWROWS=[
- ['ambush','t-kw','🐊 Ambush','Lies in wait — huge bonus versus slow prey, but useless in open water or against fast movers.'],
- ['venom','t-kw','🐍 Venom','A wound is a death sentence: on a win (or tie) it drains an extra life.'],
- ['range','t-kw','🎯 Rangestrike','Strikes from a distance and goes first — but dense cover (forest, cave) blocks it.'],
- ['pack','t-kw','🐺 Pack','Cooperative hunting: more allies in your stack = more dice, and it rerolls misses.'],
- ['swarm','t-kw','🐟 Swarm','r-selected flood: weak alone, but never tires — it can be played every single round.'],
- ['tough','t-kw','🪨 Tough','Built to last: shrugs off its first defeat with no life lost.'],
+ ['ambush','t-kw','🐊 Ambush','Lies in wait — huge bonus versus slow prey, but useless in open water or against fast movers.','Ambush predator'],
+ ['venom','t-kw','🐍 Venom','A wound is a death sentence: on a win (or tie) it drains an extra life.','Venom'],
+ ['range','t-kw','🎯 Rangestrike','Strikes from a distance and goes first — but dense cover (forest, cave) blocks it.','Animal echolocation'],
+ ['pack','t-kw','🐺 Pack','Cooperative hunting: more allies in your stack = more dice, and it rerolls misses.','Pack hunter'],
+ ['swarm','t-kw','🐟 Swarm','r-selected flood: weak alone, but never tires — it can be played every single round.','Swarm behaviour'],
+ ['tough','t-kw','🪨 Tough','Built to last: shrugs off its first defeat with no life lost.','Cryptobiosis'],
 ];
 const TER=[
- ['vent','🌋 Volcanic Vent','Life without sun. Natives get a big power boost; chemosynthesis thrives.'],
- ['reef','🐚 Shallow Sea','Sunlit reefs: aquatic strategies gain skill; filter feeders bloom.'],
- ['ocean','🌊 Open Ocean','Rewards speed and range; ambush is useless with nowhere to hide.'],
- ['ice','❄️ Ice Age','The cold culls r-strategists; the tough and cold-adapted endure.'],
- ['savanna','🌾 Savannah','Open ground: pack hunters shine; ambush has nowhere to lurk.'],
- ['forest','🌲 Canopy Forest','Dense cover blocks rangestrike; ambush gains the edge.'],
- ['desert','🏜️ Desert','Ambush and venom rule; broadcast spawners bake and die.'],
- ['cave','🕳️ Deep Cave','Darkness blinds sight-hunters; rangestrike is blocked.'],
- ['swamp','🌿 Primordial Swamp','The cradle of multicellularity; aquatic feeders do well.'],
- ['__lab','⚗️ GM Lab','A chaotic lab hex — a wildcard mutation each clash.'],
+ ['vent','🌋 Volcanic Vent','Life without sun. Natives get a big power boost; chemosynthesis thrives.','Hydrothermal vent'],
+ ['reef','🐚 Shallow Sea','Sunlit reefs: aquatic strategies gain skill; filter feeders bloom.','Coral reef'],
+ ['ocean','🌊 Open Ocean','Rewards speed and range; ambush is useless with nowhere to hide.','Pelagic zone'],
+ ['ice','❄️ Ice Age','The cold culls r-strategists; the tough and cold-adapted endure.','Ice age'],
+ ['savanna','🌾 Savannah','Open ground: pack hunters shine; ambush has nowhere to lurk.','Savanna'],
+ ['forest','🌲 Canopy Forest','Dense cover blocks rangestrike; ambush gains the edge.','Rainforest'],
+ ['desert','🏜️ Desert','Ambush and venom rule; broadcast spawners bake and die.','Desert'],
+ ['cave','🕳️ Deep Cave','Darkness blinds sight-hunters; rangestrike is blocked.','Cave'],
+ ['swamp','🌿 Primordial Swamp','The cradle of multicellularity; aquatic feeders do well.','Swamp'],
+ ['__lab','⚗️ GM Lab','A chaotic lab hex — a wildcard mutation each clash.','Genetic engineering'],
 ];
 const SCN=[
- ['bloom','☀️ Abundance','Plenty floods in — breeders and swarmers gorge; lone specialists gain little.'],
- ['drought','🥀 Scarcity','Lean times reward the dormant and the frugal; big metabolisms starve.'],
- ['cave','🌙 Total Darkness','Light fails — echolocators and electro-hunters thrive; sight-hunters stumble.'],
- ['eat','🐾 Predator Influx','Danger everywhere — the armored shrug it off; the fragile are picked apart.'],
- ['flock','👥 Crowding','Safety in numbers: cooperative, social strategies dominate; loners are jostled out.'],
- ['wildfire','🌪️ Upheaval','Chaos scrambles the field; flexible generalists cope while everything wobbles.'],
+ ['bloom','☀️ Abundance','Plenty floods in — breeders and swarmers gorge; lone specialists gain little.','Algal bloom'],
+ ['drought','🥀 Scarcity','Lean times reward the dormant and the frugal; big metabolisms starve.','Drought'],
+ ['cave','🌙 Total Darkness','Light fails — echolocators and electro-hunters thrive; sight-hunters stumble.','Aphotic zone'],
+ ['eat','🐾 Predator Influx','Danger everywhere — the armored shrug it off; the fragile are picked apart.','Predation'],
+ ['flock','👥 Crowding','Safety in numbers: cooperative, social strategies dominate; loners are jostled out.','Flocking'],
+ ['wildfire','🌪️ Upheaval','Chaos scrambles the field; flexible generalists cope while everything wobbles.','Disturbance (ecology)'],
 ];
 const CAT=[
- ['asteroid','☄️ Mass Extinction','The big and specialized die first; humble swarmers and the tough inherit the earth.'],
- ['ice','🧊 Ice Snap','Cold-blooded plans freeze — anything not cold-adapted suffers.'],
- ['asteroid','🌑 Asteroid Winter','No sun, no sight — rangestrike and photosynthesis fail.'],
- ['ocean','🟢 Ocean Anoxia','The water suffocates; aquatic strategies collapse.'],
- ['wildfire','🔥 Hyperthermal Spike','Everything cooks except the vent-dwellers.'],
- ['bloom','🌸 Resource Bloom','Sudden abundance — every reproduce effect doubles this round.'],
+ ['asteroid','☄️ Mass Extinction','The big and specialized die first; humble swarmers and the tough inherit the earth.','Extinction event'],
+ ['ice','🧊 Ice Snap','Cold-blooded plans freeze — anything not cold-adapted suffers.','Ice age'],
+ ['asteroid','🌑 Asteroid Winter','No sun, no sight — rangestrike and photosynthesis fail.','Impact winter'],
+ ['ocean','🟢 Ocean Anoxia','The water suffocates; aquatic strategies collapse.','Anoxic event'],
+ ['wildfire','🔥 Hyperthermal Spike','Everything cooks except the vent-dwellers.','Paleocene–Eocene Thermal Maximum'],
+ ['bloom','🌸 Resource Bloom','Sudden abundance — every reproduce effect doubles this round.','Algal bloom'],
 ];
-function card(slug,tagCls,tagText,title,body){
+function card(slug,tagCls,tagText,title,body,wiki){
   return `<div class="pc"><div class="ph" data-ph="${slug}"><span class="fallback">${title.split(' ')[0]}</span></div>`+
-         `<div class="bd"><span class="tag ${tagCls}">${tagText}</span><h4>${title}</h4><p>${body}</p></div></div>`;
+         `<div class="bd"><span class="tag ${tagCls}">${tagText}</span><h4>${title}</h4><p>${body}</p>`+(wiki?learnBtn(wiki):'')+`</div></div>`;
 }
-document.getElementById('grid-kw').innerHTML = KWROWS.map(k=>card(k[0],'t-kw','Keyword',k[2],k[3])).join('');
-document.getElementById('grid-terrain').innerHTML = TER.map(t=>card(t[0],'t-eat','Terrain',t[1],t[2])).join('');
-document.getElementById('grid-scenario').innerHTML = SCN.map(s=>card(s[0],'t-scn','Scenario',s[1],s[2])).join('');
-document.getElementById('grid-cata').innerHTML = CAT.map(c=>card(c[0],'t-cata','Catastrophe',c[1],c[2])).join('');
+document.getElementById('grid-kw').innerHTML = KWROWS.map(k=>card(k[0],'t-kw','Keyword',k[2],k[3],k[4])).join('');
+document.getElementById('grid-terrain').innerHTML = TER.map(t=>card(t[0],'t-eat','Terrain',t[1],t[2],t[3])).join('');
+document.getElementById('grid-scenario').innerHTML = SCN.map(s=>card(s[0],'t-scn','Scenario',s[1],s[2],s[3])).join('');
+document.getElementById('grid-cata').innerHTML = CAT.map(c=>card(c[0],'t-cata','Catastrophe',c[1],c[2],c[3])).join('');
 
 // Strategy decks + weirdos (data from cards-data.js)
 const TCODE={V:'🌋',P:'🌿',S:'🐚',O:'🌊',I:'❄️',A:'🌾',F:'🌲',D:'🏜️',C:'🕳️',G:'⚗️'};
+const TNAME={V:'🌋 Volcanic Vent',P:'🌿 Swamp',S:'🐚 Shallow Sea',O:'🌊 Open Ocean',I:'❄️ Ice Age',A:'🌾 Savannah',F:'🌲 Forest',D:'🏜️ Desert',C:'🕳️ Deep Cave',G:'⚗️ GM Lab'};
+const KWG={ambush:'Lies in wait — big bonus vs slow prey; negated in open terrain or vs fast movers.',venom:'A wound is fatal — drains an extra life on a win or tie.',range:'Strikes from range and first; blocked by dense cover.',pack:'Cooperative — more allies = more dice; rerolls misses.',swarm:'r-selected: weak alone but never tires, replays every round.',tough:'Shrugs off its first defeat with no life lost.'};
+const WIKI={
+ chemosynthesis:'Chemosynthesis',anoxygenic:'Anoxygenic photosynthesis',oxygenic:'Photosynthesis',osmotrophy:'Osmotroph',
+ filter_feed:'Filter feeder',detritivory:'Detritivore',parasitism:'Parasitism',bulk_graze:'Grazing',browse:'Browsing (herbivory)',
+ sit_wait:'Ambush predator',seed_pred:'Seed predation',venom:'Venom',trap_build:'Spider web',solo_sprint:'Pursuit predation',
+ electro:'Electroreception',persistence:'Persistence hunting',pack_hunt:'Pack hunter',echolocation:'Animal echolocation',
+ klepto:'Kleptoparasitism',tool_use:'Tool use by animals',apex_crush:'Apex predator',fungal_farm:'Fungus-growing ants',
+ binary_fission:'Fission (biology)',hgt:'Horizontal gene transfer',budding:'Budding',fragmentation:'Fragmentation (reproduction)',
+ broadcast:'Broadcast spawning',parthenogenesis:'Parthenogenesis',veg_prop:'Vegetative reproduction',spore:'Cryptobiosis',
+ semelparous:'Semelparity and iteroparity',swarm_breed:'Swarm behaviour',display:'Courtship display',sperm_comp:'Sperm competition',
+ delayed_dev:'Diapause',viviparity:'Viviparity',lek:'Lek mating',infanticide:'Infanticide (zoology)',allo_parent:'Alloparenting',
+ ext_care:'Parental care',eusocial:'Eusociality',seq_herm:'Sequential hermaphroditism',repro_manip:'Ophiocordyceps unilateralis',
+ sex_parasit:'Anglerfish'
+};
 function stratCard(c,deck){
   const kws=(KW[c.id]||[]);
-  const ter=(c.ter||[]).map(t=>TCODE[t]||t).join(' ');
+  const terI=(c.ter||[]).map(t=>TCODE[t]||t).join(' ');
+  const terN=(c.ter||[]).map(t=>TNAME[t]||t).join(', ');
   const art=ART[c.id]||('<div class="medallion">'+c.art+'</div>');
   const st=(l,v,p)=>`<span class="${p?'pow':''}">${l} ${v}</span>`;
-  return `<div class="scard ${deck}"><div class="scard-art">${art}</div>`+
-    `<div class="scard-name">${c.n}</div>`+
-    `<div class="scard-tier">Tier ${c.t} · ${ter||'—'}</div>`+
-    `<div class="scard-stats">${st('OFF',c.off,deck==='eat')}${st('DEF',c.def)}${st('REP',c.rep,deck==='fk')}${st('ADA',c.ada)}${st('MOV',c.mov)}</div>`+
-    `<div>${kws.map(k=>'<span class="kwtag">'+k+'</span>').join('')}</div></div>`;
+  const stats=`<div class="scard-stats">${st('OFF',c.off,deck==='eat')}${st('DEF',c.def)}${st('REP',c.rep,deck==='fk')}${st('ADA',c.ada)}${st('MOV',c.mov)}</div>`;
+  const kwline=kws.map(k=>'<span class="kwtag">'+k+'</span>').join('');
+  const tip=`<div class="stip"><div class="stip-art">${art}</div><div class="stip-name">${c.n}</div>`+
+    `<div class="stip-meta">Tier ${c.t} · ${deck==='eat'?'🦷 EAT IT (Power = OFF)':'🧬 F*CK IT (Power = REP)'}<br>native to ${terN||'—'}</div>${stats}`+
+    (kws.length?`<div class="stip-kw">${kws.map(k=>'<div><b>'+k.toUpperCase()+'</b> — '+(KWG[k]||'')+'</div>').join('')}</div>`:'')+
+    learnBtn(WIKI[c.id]||c.n)+`</div>`;
+  return `<div class="scard ${deck}" onclick="this.classList.toggle('open')">${tip}<div class="scard-art">${art}</div>`+
+    `<div class="scard-name">${c.n}</div><div class="scard-tier">Tier ${c.t} · ${terI||'—'}</div>${stats}<div>${kwline}</div></div>`;
 }
 function weirdoGroup(roll){
   const w=WEIRDO_STACKS[roll];
-  return `<div class="weirdo"><div class="weirdo-hd">${w.art} ${w.n} <span>brings a 3-card stack</span></div>`+
+  return `<div class="weirdo"><div class="weirdo-hd">${w.art} ${w.n} <span>brings a 3-card stack</span> ${learnBtn(w.n)}</div>`+
     `<div class="wcards">${w.cards.map(c=>`<div class="wcard"><div class="medallion">${c.art}</div><div class="wc-n">${c.n}</div>`+
       `<div class="wc-s">OFF ${c.off} · DEF ${c.def} · REP ${c.rep} · ADA ${c.ada}</div>`+
-      `${(c.kw||[]).map(k=>'<span class="kwtag">'+k+'</span>').join('')}</div>`).join('')}</div></div>`;
+      `${(c.kw||[]).map(k=>'<span class="kwtag">'+k+'</span>').join('')}${learnBtn(c.n)}</div>`).join('')}</div></div>`;
 }
 if(typeof EAT!=='undefined'){
   document.getElementById('grid-eat').innerHTML=EAT.map(c=>stratCard(c,'eat')).join('');
