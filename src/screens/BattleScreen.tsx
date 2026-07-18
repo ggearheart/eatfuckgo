@@ -9,6 +9,7 @@ import { BOARDS, TERRAIN_FX, CFG, WEIRDO_STACKS, EAT, FK, kwOf } from '../engine
 import {
   roller, firstPicker, secondPicker, deployTurn, diceProfile, expHits, sideName,
 } from '../engine/engine';
+import { ELEMENTS, TERRAIN_ELEMENTS, matchedElements } from '../engine/elements';
 import { CardArt, KwTags } from '../components/CardArt';
 import { ModChips, ModLegend } from '../components/ModChips';
 import { LifeTrack } from '../components/LifeTrack';
@@ -65,7 +66,7 @@ export function BattleScreen({ state: s, dispatch, onNewRandom, onExit }: {
 
         {/* Set variables */}
         <div className="flex gap-2 flex-wrap mb-2.5 text-[11px]">
-          <Chip on style={{ borderColor: '#3a7a4a', background: '#eef7f0' }}>{b.icon} Terrain: <b>{b.name}</b><br /><span className="text-[9px] text-neutral-500">{(TERRAIN_FX[s.terrain] || {}).note || ''}</span></Chip>
+          <Chip on style={{ borderColor: '#3a7a4a', background: '#eef7f0' }}>{b.icon} Terrain: <b>{b.name}</b> <span className="text-sm">{(TERRAIN_ELEMENTS[s.terrain] || []).map((e) => ELEMENTS[e].icon).join('')}</span><br /><span className="text-[9px] text-neutral-500">supplies {(TERRAIN_ELEMENTS[s.terrain] || []).map((e) => ELEMENTS[e].name).join(', ')}</span></Chip>
           <Chip on={scenarioSet} style={scenarioSet ? { borderColor: '#2a6aa0', background: '#eef4fb' } : {}}>{scenarioSet ? <>{s.scenario.icon} Scenario: <b>{s.scenario.name}</b><br /><span className="text-[9px] text-neutral-500">{s.scenario.tag}</span></> : <>🎲 Scenario: <b>— not yet rolled</b></>}</Chip>
           <Chip on={!!s.cata} style={s.cata ? { borderColor: '#e02418', background: '#fdeeec' } : {}}>{s.cata ? <>{s.cata.icon} Catastrophe: <b>{s.cata.name}</b><br /><span className="text-[9px] text-neutral-500">{s.cata.head}</span></> : s.cataChecked ? <>🍃 Catastrophe: <b>none</b></> : <>☄️ Catastrophe: <b>checked round {CATA_ROUND}</b></>}</Chip>
           <Chip on style={{ marginLeft: 'auto', borderColor: accent }}>Round <b>{s.round}</b><br /><span className="text-[9px]">{theme === 'eat' ? '🦷 EAT · Power=OFF' : '🧬 F*CK · Power=REP'}</span></Chip>
@@ -216,12 +217,16 @@ function ArenaSlot({ side, s, onInspect }: { side: Side; s: State; onInspect: (v
   const oppIdx = s.played[oppSide];
   const oppCard = oppIdx != null ? s.stack[oppSide][oppIdx].card : null;
   const p = diceProfile(s, inst, side, oppCard);
+  const myMatch = matchedElements(inst.card, s.terrain).length;
+  const oppMatch = oppCard ? matchedElements(oppCard, s.terrain).length : -1;
+  const dominant = !!oppCard && myMatch > oppMatch;
   return (
     <motion.div layout initial={{ scale: 0.8, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }}
       onClick={() => previewing && onInspect({ side, idx })}
       className="rounded-xl border-2 min-h-[150px] flex flex-col items-center justify-center text-center p-2.5 cursor-pointer"
-      style={{ background: tint, borderColor: accent, outline: previewing ? '3px dashed #f0c000' : 'none' }}>
+      style={{ background: tint, borderColor: accent, outline: dominant ? '3px solid #d4a017' : previewing ? '3px dashed #f0c000' : 'none' }}>
       {previewing && <div className="text-[8px] font-black tracking-wide text-[#a07000] bg-[#fff3c4] border border-[#d4b020] rounded px-1.5 mb-0.5">PREVIEW · tap to inspect / swap</div>}
+      {dominant && <div className="text-[9px] font-black tracking-wide text-white bg-[#d4a017] rounded px-2 py-0.5 mb-0.5">👑 DOMINATES THIS BIOME</div>}
       <CardArt card={inst.card} size={56} battleType={s.battleType} />
       <div className="text-[12px] font-black leading-tight mt-1">{inst.card.n}{inst.isWeirdo ? ' 🧬' : ''}</div>
       <div className="text-2xl font-black">🎲{p.dice}</div>

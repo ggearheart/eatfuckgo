@@ -5,6 +5,7 @@ import {
   CFG, EAT, FK, WEIRDO_STACKS, TERRAIN_FX, CATASTROPHES, SCENARIOS, BOARDS,
   hasKW, isAquatic, setCtx, Side,
 } from './data';
+import { matchedElements, ELEMENTS } from './elements';
 
 export interface Inst { card: any; adapt: number; exhausted: boolean; isWeirdo: boolean; toughUsed?: boolean }
 export type Step = 'catacheck' | 'scenario' | 'p1' | 'p2' | 'ready' | 'over';
@@ -12,7 +13,7 @@ export type PartSrc = 'base' | 'terrain' | 'scenario' | 'cata' | 'energy' | 'lin
 export interface Part { t: string; src: PartSrc }
 export interface Profile { dice: number; hitOn: number; power: number; parts: Part[]; native: boolean; reroll: boolean; first: boolean }
 export interface Pool { rolls: { r: number; h: boolean; r2?: number }[]; hits: number }
-export interface LastRoll { aP: Profile; dP: Profile; a: Pool; d: Pool; aHits: number; dHits: number; aCard: any; dCard: any }
+export interface LastRoll { aP: Profile; dP: Profile; a: Pool; d: Pool; aHits: number; dHits: number; aCard: any; dCard: any; dominant: Side | null }
 export interface State {
   battleType: 'eat' | 'fk'; terrain: string; round: number; step: Step;
   life: Record<Side, number>; energy: Record<Side, number>;
@@ -99,8 +100,10 @@ export function diceProfile(s: State, inst: Inst, side: Side | null, oppCard: an
   let reroll = false, first = false;
   const tf = TERRAIN_FX[s.terrain] || {};
   const native = (c.ter || []).includes(s.terrain);
-  if (native) { dice += 1; add('+1 die native', 'terrain'); }
-  else if (tf.nonNative) { dice -= 1; add('−1 die non-native', 'terrain'); }
+  // Element-matching dominance: suits the biome's elements → +1 die each; unsuited → −1
+  const matched = matchedElements(c, s.terrain);
+  if (matched.length) { dice += matched.length; add(`+${matched.length} dice · suits ${matched.map((e) => ELEMENTS[e].icon).join('')}`, 'terrain'); }
+  else { dice -= 1; add('−1 die · unsuited to biome', 'terrain'); }
   const meta = side ? (s.alloc[side].meta || 0) : 0;
   if (meta) { dice += meta; add(`+${meta} dice metabolize`, 'energy'); }
   if (side) {
@@ -132,6 +135,11 @@ export function diceProfile(s: State, inst: Inst, side: Side | null, oppCard: an
   if (s.cata) { const cm = s.cata.fx(c); if (cm) { const dd = cm > 0 ? Math.ceil(cm / 2) : -Math.ceil(-cm / 2); if (dd) { dice += dd; add(`${dd > 0 ? '+' : ''}${dd} dice · ${s.cata.name}`, 'cata'); } } }
   dice = Math.max(1, dice); hitOn = Math.max(2, Math.min(6, hitOn));
   return { dice, hitOn, power: pw, parts, native, reroll, first };
+}
+// Who is better suited to (dominates) the current biome — the DS tiebreaker.
+export function dominantSide(s: State, aCard: any, dCard: any): Side | null {
+  const a = matchedElements(aCard, s.terrain).length, d = matchedElements(dCard, s.terrain).length;
+  return a > d ? 'atk' : d > a ? 'def' : null;
 }
 export const expHits = (p: Profile) => (p.dice * (7 - p.hitOn)) / 6;
 export const verdict = (p: Profile): [string, string] => {
@@ -192,11 +200,16 @@ export function resolveClash(s: State) {
   let aHits = a.hits, dHits = d.hits;
   if (aP.first && !dP.first && aHits > 0) dHits = Math.max(0, dHits - 1);
   if (dP.first && !aP.first && dHits > 0) aHits = Math.max(0, aHits - 1);
-  s.lastRoll = { aP, dP, a, d, aHits, dHits, aCard: aC, dCard: dC };
+  const dom = dominantSide(s, aC, dC);
+  s.lastRoll = { aP, dP, a, d, aHits, dHits, aCard: aC, dCard: dC, dominant: dom };
 
   let la = 0, ld = 0, msg = '', win = 'tie';
   if (aHits > dHits) { win = 'atk'; ld = 1; aInst.adapt++; msg = `⚔️ ${aC.n} lands ${aHits} hits to ${dHits}.`; if (hasKW(aC, 'venom')) { ld++; msg += ' ☠️ Venom!'; } }
   else if (dHits > aHits) { win = 'def'; la = 1; dInst.adapt++; msg = `🛡️ ${dC.n} lands ${dHits} hits to ${aHits}.`; if (hasKW(dC, 'venom')) { la++; msg += ' ☠️ Venom!'; } }
+  else if (dom) { // hit tie → best-suited to the biome dominates
+    if (dom === 'atk') { win = 'atk'; ld = 1; aInst.adapt++; msg = `⚔️ ${aHits}–${dHits} tie — 👑 ${aC.n} dominates the biome (better suited).`; }
+    else { win = 'def'; la = 1; dInst.adapt++; msg = `🛡️ ${dHits}–${aHits} tie — 👑 ${dC.n} dominates the biome (better suited).`; }
+  }
   else if (aP.power !== dP.power) {
     if (aP.power > dP.power) { win = 'atk'; ld = 1; aInst.adapt++; msg = `⚔️ ${aHits}–${dHits} tie — ${aC.n} is the stronger strategy.`; }
     else { win = 'def'; la = 1; dInst.adapt++; msg = `🛡️ ${dHits}–${aHits} tie — ${dC.n} is the stronger strategy.`; }
