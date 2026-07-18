@@ -9,7 +9,7 @@ import { BOARDS, TERRAIN_FX, CFG, WEIRDO_STACKS, EAT, FK, kwOf } from '../engine
 import {
   roller, firstPicker, secondPicker, deployTurn, diceProfile, expHits, sideName,
 } from '../engine/engine';
-import { ELEMENTS, TERRAIN_ELEMENTS, matchedElements } from '../engine/elements';
+import { ELEMENTS, TERRAIN_ELEMENTS, matchedElements, matchCount } from '../engine/elements';
 import { CardArt, KwTags } from '../components/CardArt';
 import { ModChips, ModLegend } from '../components/ModChips';
 import { LifeTrack } from '../components/LifeTrack';
@@ -123,6 +123,7 @@ export function BattleScreen({ state: s, dispatch, onNewRandom, onExit }: {
           <ArenaSlot side="def" s={s} onInspect={setInspect} />
         </div>
 
+        <DominanceBanner s={s} />
         {(s.played.atk != null || s.played.def != null || s.pending.atk != null || s.pending.def != null) && <ModLegend />}
 
         {/* Dice pools */}
@@ -217,9 +218,12 @@ function ArenaSlot({ side, s, onInspect }: { side: Side; s: State; onInspect: (v
   const oppIdx = s.played[oppSide];
   const oppCard = oppIdx != null ? s.stack[oppSide][oppIdx].card : null;
   const p = diceProfile(s, inst, side, oppCard);
-  const myMatch = matchedElements(inst.card, s.terrain).length;
+  const myElems = matchedElements(inst.card, s.terrain);
+  const myMatch = myElems.length;
+  const terrTotal = (TERRAIN_ELEMENTS[s.terrain] || []).length;
   const oppMatch = oppCard ? matchedElements(oppCard, s.terrain).length : -1;
   const dominant = !!oppCard && myMatch > oppMatch;
+  const fitColor = myMatch >= terrTotal && myMatch > 0 ? '#1a8030' : myMatch > 0 ? '#a06a10' : '#c02018';
   return (
     <motion.div layout initial={{ scale: 0.8, y: 20, opacity: 0 }} animate={{ scale: 1, y: 0, opacity: 1 }}
       onClick={() => previewing && onInspect({ side, idx })}
@@ -229,6 +233,9 @@ function ArenaSlot({ side, s, onInspect }: { side: Side; s: State; onInspect: (v
       {dominant && <div className="text-[9px] font-black tracking-wide text-white bg-[#d4a017] rounded px-2 py-0.5 mb-0.5">👑 DOMINATES THIS BIOME</div>}
       <CardArt card={inst.card} size={56} battleType={s.battleType} />
       <div className="text-[12px] font-black leading-tight mt-1">{inst.card.n}{inst.isWeirdo ? ' 🧬' : ''}</div>
+      <div className="text-[10px] font-extrabold mt-0.5" style={{ color: fitColor }}>
+        🏞️ Biome fit {myMatch}/{terrTotal} {myElems.map((e) => ELEMENTS[e].icon).join('') || '—'}
+      </div>
       <div className="text-2xl font-black">🎲{p.dice}</div>
       <div className="text-[10px] font-extrabold text-neutral-500">hits on {p.hitOn}+ · ~{expHits(p).toFixed(1)} hits</div>
       <div className="mt-1 w-full"><ModChips parts={p.parts} /></div>
@@ -237,6 +244,28 @@ function ArenaSlot({ side, s, onInspect }: { side: Side; s: State; onInspect: (v
   );
 }
 
+function arenaInst(s: State, side: Side) {
+  const i = s.played[side] != null ? s.played[side] : (deployTurn(s, side) ? s.pending[side] : null);
+  return i != null ? s.stack[side][i] : null;
+}
+function DominanceBanner({ s }: { s: State }) {
+  const a = arenaInst(s, 'atk'), d = arenaInst(s, 'def');
+  if (!a || !d) return null;
+  const total = (TERRAIN_ELEMENTS[s.terrain] || []).length;
+  const am = matchCount(a.card, s.terrain), dm = matchCount(d.card, s.terrain);
+  const dom: Side | null = am > dm ? 'atk' : dm > am ? 'def' : null;
+  const b = BOARDS[s.terrain];
+  return (
+    <div className="text-center text-[12px] font-bold rounded-lg border-2 py-1.5 my-1.5 px-2" style={{ borderColor: '#d4a017', background: '#fffdf3' }}>
+      {dom ? (
+        <><b style={{ color: dom === 'atk' ? '#c4561e' : '#7b4fa0' }}>👑 {dom === 'atk' ? 'Attacker' : 'Defender'}'s {(dom === 'atk' ? a : d).card.n} dominates {b.name}</b>
+        {' '}— best suited ({dom === 'atk' ? am : dm}/{total} vs {dom === 'atk' ? dm : am}/{total} elements). Wins clash ties.</>
+      ) : (
+        <>⚖️ Suitability tie — both fit {am}/{total} of {b.name}'s elements. Neither dominates; dice &amp; Power decide.</>
+      )}
+    </div>
+  );
+}
 function Hand({ side, s, onInspect }: { side: Side; s: State; onInspect: (v: { side: Side; idx: number }) => void }) {
   return (
     <div className="flex flex-col gap-1.5">
