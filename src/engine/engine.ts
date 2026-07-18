@@ -91,7 +91,7 @@ const basePower = (i: Inst, bt: 'eat' | 'fk') => (bt === 'eat' ? i.card.off : i.
 export function diceProfile(s: State, inst: Inst, side: Side | null, oppCard: any | null): Profile {
   setCtx(s.battleType, s.terrain);
   const c = inst.card, pw = basePower(inst, s.battleType);
-  let dice = Math.max(1, Math.ceil(pw / 2) + 1);
+  let dice = Math.max(1, Math.ceil(pw / 2) + 2);
   let hitOn = Math.max(2, Math.min(6, 6 - Math.floor((c.ada || 0) / 3)));
   const parts: Part[] = [];
   const add = (t: string, src: Part['src']) => parts.push({ t, src });
@@ -104,8 +104,6 @@ export function diceProfile(s: State, inst: Inst, side: Side | null, oppCard: an
   const matched = matchedElements(c, s.terrain);
   if (matched.length) { dice += matched.length; add(`+${matched.length} dice · suits ${matched.map((e) => ELEMENTS[e].icon).join('')}`, 'terrain'); }
   else { dice -= 1; add('−1 die · unsuited to biome', 'terrain'); }
-  const meta = side ? (s.alloc[side].meta || 0) : 0;
-  if (meta) { dice += meta; add(`+${meta} dice metabolize`, 'energy'); }
   if (side) {
     let lin = 0;
     s.stack[side].forEach((o) => { if (o !== inst && o.card.t < c.t && (o.card.ter || []).some((t: string) => (c.ter || []).includes(t))) lin++; });
@@ -217,7 +215,6 @@ export function resolveClash(s: State) {
   if (la > 0 && hasKW(aC, 'tough') && !aInst.toughUsed) { aInst.toughUsed = true; la = 0; msg += ' 🪨 Attacker shrugs it off (Tough).'; }
   if (ld > 0 && hasKW(dC, 'tough') && !dInst.toughUsed) { dInst.toughUsed = true; ld = 0; msg += ' 🪨 Defender shrugs it off (Tough).'; }
   s.life.atk -= la; s.life.def -= ld;
-  applyRepro(s, 'atk'); applyRepro(s, 'def');
   log(s, msg);
   s.outcome = msg + ' — ' + flavor(win);
   s.stack.atk.forEach((i) => (i.exhausted = false)); s.stack.def.forEach((i) => (i.exhausted = false));

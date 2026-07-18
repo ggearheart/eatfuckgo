@@ -26,7 +26,7 @@ export function ModChips({ parts, hideBase = true }: { parts: Part[]; hideBase?:
 }
 
 export function ModLegend() {
-  const items: PartSrc[] = ['terrain', 'scenario', 'cata', 'energy', 'lineage', 'keyword'];
+  const items: PartSrc[] = ['terrain', 'scenario', 'cata', 'lineage', 'keyword'];
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center text-[9px] font-semibold text-neutral-500 my-1">
       <span className="font-extrabold text-neutral-600">How this round is tilted:</span>

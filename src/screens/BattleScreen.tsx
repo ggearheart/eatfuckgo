@@ -101,8 +101,8 @@ export function BattleScreen({ state: s, dispatch, onNewRandom, onExit }: {
 
         {/* Life + energy */}
         <div className="flex gap-3 mb-2.5">
-          <SidePanel side="atk" s={s} dispatch={dispatch} accent="#c4561e" tint="#fdf0ea" />
-          <SidePanel side="def" s={s} dispatch={dispatch} accent="#7b4fa0" tint="#f5f0ff" />
+          <SidePanel side="atk" s={s} accent="#c4561e" tint="#fdf0ea" />
+          <SidePanel side="def" s={s} accent="#7b4fa0" tint="#f5f0ff" />
         </div>
 
         {/* Arena */}
@@ -179,22 +179,11 @@ function Chip({ children, on, style }: any) {
   return <div className="px-3 py-1.5 rounded-xl border-2 bg-white text-[#4a3820]" style={{ borderColor: on ? undefined : '#e8ddd0', ...style }}>{children}</div>;
 }
 
-function SidePanel({ side, s, dispatch, accent, tint }: { side: Side; s: State; dispatch: Dispatch<Action>; accent: string; tint: string }) {
-  const editable = deployTurn(s, side);
-  const a = s.alloc[side]; const E = s.energy[side];
+function SidePanel({ side, s, accent, tint }: { side: Side; s: State; accent: string; tint: string }) {
   return (
     <div className="flex-1 text-center rounded-xl border-2 p-2" style={{ borderColor: accent, background: tint }}>
       <div className="font-black text-[13px]" style={{ color: accent }}>{side === 'atk' ? '⚔️ Attacker' : '🛡️ Defender'}</div>
       <LifeTrack life={s.life[side]} start={CFG.startLife} battleType={s.battleType} />
-      <div className="text-[9px] font-extrabold uppercase tracking-wide text-neutral-500 mt-1">⚡ Energy {E} → 🦷Fight / 🧬Breed</div>
-      <div className="flex gap-1 justify-center mt-1">
-        {Array.from({ length: E + 1 }, (_, m) => (
-          <button key={m} disabled={!editable} onClick={() => dispatch({ t: 'alloc', side, meta: m })}
-            className="border-2 border-black rounded px-1.5 py-0.5 text-[10px] font-extrabold"
-            style={{ background: a.meta === m ? '#1a140c' : '#fff', color: a.meta === m ? '#ffd21a' : '#888', cursor: editable ? 'pointer' : 'default' }}>{m}</button>
-        ))}
-      </div>
-      <div className="text-[9px] text-neutral-500 mt-0.5">🦷+{a.meta} dice · 🧬{a.repro} breed{a.repro >= 2 ? ' (+1 life)' : ''}{a.repro >= 3 ? ' +spawn' : ''}</div>
     </div>
   );
 }
