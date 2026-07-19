@@ -49,28 +49,45 @@ export function ContestSetup({ match, hex, onLaunch, onConcede, onCancel }: {
   const atk = match.turn, def = otherPlayer(match.turn);
   const aff = BIOME_AFFINITY[biome];
 
-  const [step, setStep] = useState<Step>('atkMode');
-  const [atkMode, setAtkMode] = useState<Faction>(PLAYERS[atk].fac);
-  const [atkSpecies, setAtkSpecies] = useState<string | null>(null);
-  const [defMode, setDefMode] = useState<Faction>(PLAYERS[def].fac);
-  const [defSpecies, setDefSpecies] = useState<string | null>(null);
+  // a player can only field species whose strategy is in their collection
+  const atkOwned = new Set(match.collection[atk]);
+  const defOwned = new Set(match.collection[def]);
+  const modeAvail = (o: Set<string>, mode: Faction) => rosterFor(biome, mode).some((s) => o.has(s.id));
+  const firstMode = (o: Set<string>, team: Faction): Faction => {
+    const other = team === 'eat' ? 'fk' : 'eat';
+    return modeAvail(o, team) ? team : modeAvail(o, other) ? other : team;
+  };
 
-  const atkRoster = rosterFor(biome, atkMode);
-  const defRoster = rosterFor(biome, defMode);
+  const [step, setStep] = useState<Step>('atkMode');
+  const [atkMode, setAtkMode] = useState<Faction>(() => firstMode(atkOwned, PLAYERS[atk].fac));
+  const [atkSpecies, setAtkSpecies] = useState<string | null>(null);
+  const [defMode, setDefMode] = useState<Faction>(() => firstMode(defOwned, PLAYERS[def].fac));
+  const [defSpecies, setDefSpecies] = useState<string | null>(null);
+  const pickAtkMode = (f: Faction) => { setAtkMode(f); setAtkSpecies(null); };
+  const pickDefMode = (f: Faction) => { setDefMode(f); setDefSpecies(null); };
+
+  const atkRoster = rosterFor(biome, atkMode).filter((s) => atkOwned.has(s.id));
+  const defRoster = rosterFor(biome, defMode).filter((s) => defOwned.has(s.id));
   const spById = (id: string | null) => (id ? speciesInBiome(biome).find((s) => s.id === id) : null);
 
   const affTag = (
     <span className="text-[11px] text-neutral-500">this biome favors {FACTION[aff].icon} <b>{FACTION[aff].name}</b> (+1 die)</span>
   );
-  const modeButtons = (val: Faction, set: (f: Faction) => void, team: Faction) => (
+  const modeButtons = (val: Faction, set: (f: Faction) => void, team: Faction, o: Set<string>) => (
     <div className="flex gap-2 justify-center my-2">
-      {(['eat', 'fk'] as Faction[]).map((f) => (
-        <button key={f} onClick={() => set(f)}
-          className="px-4 py-2 rounded-xl border-2 font-extrabold text-sm"
-          style={val === f ? { borderColor: '#1a0e04', background: f === 'eat' ? '#c4561e' : '#7b4fa0', color: '#fff' } : { borderColor: '#d4d4d4', color: '#888', background: '#fff' }}>
-          {FACTION[f].icon} {FACTION[f].name}{f === team ? ' ★' : ''}
-        </button>
-      ))}
+      {(['eat', 'fk'] as Faction[]).map((f) => {
+        const avail = modeAvail(o, f);
+        return (
+          <button key={f} disabled={!avail} onClick={() => set(f)}
+            title={avail ? '' : 'no species of this mode in your collection here'}
+            className="px-4 py-2 rounded-xl border-2 font-extrabold text-sm disabled:cursor-not-allowed"
+            style={val === f
+              ? { borderColor: '#1a0e04', background: f === 'eat' ? '#c4561e' : '#7b4fa0', color: '#fff' }
+              : { borderColor: '#d4d4d4', color: '#888', background: '#fff', opacity: avail ? 1 : 0.35 }}>
+            {FACTION[f].icon} {FACTION[f].name}{f === team ? ' ★' : ''}
+          </button>
+        );
+      })}
     </div>
   );
 
@@ -93,9 +110,11 @@ export function ContestSetup({ match, hex, onLaunch, onConcede, onCancel }: {
           {step === 'atkMode' && (
             <motion.div key="am" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="text-center text-sm font-bold mt-2" style={{ color: PLAYERS[atk].color }}>{PLAYERS[atk].dot} {PLAYERS[atk].name} — how will you fight this biome?</div>
-              {modeButtons(atkMode, setAtkMode, PLAYERS[atk].fac)}
-              <div className="text-[11px] text-neutral-500 text-center">★ = your team. You may fight in either mode.</div>
-              <button onClick={() => setStep('atkPick')} className="mt-3 w-full py-2.5 rounded-xl border-2 border-ink bg-ink text-white font-extrabold">Field your {FACTION[atkMode].name} species →</button>
+              {modeButtons(atkMode, pickAtkMode, PLAYERS[atk].fac, atkOwned)}
+              <div className="text-[11px] text-neutral-500 text-center">★ = your team · greyed = no species in your collection here.</div>
+              <button disabled={atkRoster.length === 0} onClick={() => setStep('atkPick')} className="mt-3 w-full py-2.5 rounded-xl border-2 border-ink bg-ink text-white font-extrabold disabled:opacity-40">
+                {atkRoster.length ? `Field your ${FACTION[atkMode].name} species →` : 'No species in your collection for this biome'}
+              </button>
               <button onClick={onCancel} className="mt-2 text-xs text-neutral-500 underline block mx-auto">cancel</button>
             </motion.div>
           )}
@@ -133,7 +152,7 @@ export function ContestSetup({ match, hex, onLaunch, onConcede, onCancel }: {
                 <div className="text-[10px] text-neutral-500">fielding: {atkRoster.map((s) => s.emoji).join(' ')}</div>
               </div>
               <div className="text-center text-sm font-bold mt-3" style={{ color: PLAYERS[def].color }}>{PLAYERS[def].dot} {PLAYERS[def].name} — answer or concede?</div>
-              {modeButtons(defMode, setDefMode, PLAYERS[def].fac)}
+              {modeButtons(defMode, pickDefMode, PLAYERS[def].fac, defOwned)}
               <div className="flex gap-2 mt-1">
                 <button onClick={onConcede} className="px-3 py-2.5 rounded-xl border-2 border-ink bg-white text-xs font-extrabold text-neutral-600">🏳️ Concede hex</button>
                 <button onClick={() => setStep('defPick')} className="flex-1 py-2.5 rounded-xl border-2 border-ink text-white font-extrabold" style={{ background: PLAYERS[def].color }}>Field {FACTION[defMode].name} species →</button>

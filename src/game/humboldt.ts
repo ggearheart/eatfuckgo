@@ -3,6 +3,7 @@
 // his climate/altitude zones, placed sea-level → summit on a stylized cross-section.
 
 import { HEXES, HOME, biomeOwner, hexesOfBiome } from './board';
+import { SPECIES, speciesCat } from './species';
 
 export type PlayerId = 'p1' | 'p2';
 export type Faction = 'eat' | 'fk';
@@ -42,13 +43,24 @@ export interface MatchState {
   warming: number;                // 0..MAX_WARMING
   turns: number;                  // turns (contests) resolved so far
   turn: PlayerId;
+  collection: Record<PlayerId, string[]>; // SPECIES ids each player has collected
+}
+// A team-biased starter roster: most of your team's species + a few of the other.
+export function starterCollection(fac: Faction): string[] {
+  const own = SPECIES.filter((s) => speciesCat(s) === fac).map((s) => s.id);
+  const other = SPECIES.filter((s) => speciesCat(s) !== fac).map((s) => s.id);
+  const shuffled = (a: string[]) => { const x = [...a]; for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x; };
+  return Array.from(new Set([...shuffled(own).slice(0, 22), ...shuffled(other).slice(0, 5)]));
 }
 export function freshMatch(): MatchState {
   const owners: Record<string, PlayerId | null> = {};
   const states: Record<string, string> = {};
   HEXES.forEach((h) => { owners[h.id] = null; states[h.id] = h.biome; });
   (Object.keys(HOME) as PlayerId[]).forEach((p) => HOME[p].forEach((id) => (owners[id] = p)));
-  return { owners, states, warming: 0, turns: 0, turn: 'p1' };
+  return {
+    owners, states, warming: 0, turns: 0, turn: 'p1',
+    collection: { p1: starterCollection(PLAYERS.p1.fac), p2: starterCollection(PLAYERS.p2.fac) },
+  };
 }
 // hexes held by a player
 export const heldBy = (m: MatchState, p: PlayerId) => HEXES.filter((h) => m.owners[h.id] === p).length;

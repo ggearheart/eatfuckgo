@@ -5,8 +5,9 @@ import { useBattle } from './store';
 import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
-import { freshMatch, otherPlayer, heldBy, biomesControlledBy, matchWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, FACTION, PLAYERS, MatchState, Faction } from './game/humboldt';
-import { curBiome, tickClock, STAGE_LABELS } from './game/board';
+import { freshMatch, otherPlayer, heldBy, biomesControlledBy, matchWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, FACTION, PLAYERS, ALL_BIOMES, MatchState, Faction, PlayerId } from './game/humboldt';
+import { curBiome, hexesOfBiome, tickClock, STAGE_LABELS } from './game/board';
+import { speciesInBiome, SPECIES_BY_ID } from './game/species';
 import { ContestSetup, ContestResult } from './components/ContestSetup';
 
 const rand = (n: number) => Math.floor(Math.random() * n);
@@ -48,13 +49,27 @@ export default function App() {
   // ── Humboldt match ──
   function startMatch() { setPlayerNames(p1Name, p2Name); setPlayerFactions(p1Fac, p2Fac); setMatch(freshMatch()); setResult(null); setWarmingNote(null); setLog([`🌱 ${PLAYERS.p1.name} (${FACTION[p1Fac].name}) vs ${PLAYERS.p2.name} (${FACTION[p2Fac].name}) — the mountain awaits.`]); setPhase('map'); }
   function pickBiome(id: string) { setWarmingNote(null); setPending(id); }
-  // finish a turn: advance the warming clock, apply migration displacement, check victory, log
-  function finishTurn(owners: Record<string, any>, entries: string[]) {
+  // finish a turn: advance the warming clock, apply migration displacement, grow/prune
+  // collections, check victory, log
+  function finishTurn(owners: Record<string, any>, entries: string[], gain?: { player: PlayerId; species: string }) {
     const tick = tickClock(match);
     const displaced = tick.changed.filter((c) => owners[c.id]).length;
     tick.changed.forEach((c) => { if (owners[c.id]) owners[c.id] = null; }); // migration teeth
     if (tick.changed.length) entries.push(`🔥 ${STAGE_LABELS[tick.warming]}: ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''}` : ''}.`);
-    const next = { ...match, owners, states: tick.states, warming: tick.warming, turns: tick.turns, turn: otherPlayer(match.turn) };
+    // collection: winner absorbs the defeated dominant species
+    const collection = { p1: [...match.collection.p1], p2: [...match.collection.p2] };
+    if (gain && !collection[gain.player].includes(gain.species)) {
+      collection[gain.player].push(gain.species);
+      entries.push(`🧬 ${PLAYERS[gain.player].name} absorbed ${SPECIES_BY_ID[gain.species]?.emoji} ${SPECIES_BY_ID[gain.species]?.name} into their collection.`);
+    }
+    // extinction: a biome zeroed by warming takes its species out of the game for everyone
+    const extinct = ALL_BIOMES.filter((c) => hexesOfBiome(c, match.states).length > 0 && hexesOfBiome(c, tick.states).length === 0);
+    if (extinct.length) {
+      const dead = new Set(extinct.flatMap((c) => speciesInBiome(c).map((s) => s.id)));
+      (['p1', 'p2'] as PlayerId[]).forEach((p) => { collection[p] = collection[p].filter((id) => !dead.has(id)); });
+      entries.push(`🦴 ${extinct.map((c) => BOARDS[c].name).join(', ')} vanished — ${dead.size} species went extinct.`);
+    }
+    const next = { ...match, owners, states: tick.states, warming: tick.warming, turns: tick.turns, turn: otherPlayer(match.turn), collection };
     setMatch(next);
     setWarmingNote(tick.changed.length
       ? `🔥 The planet warmed to ${STAGE_LABELS[tick.warming]} — ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''} (now neutral)` : ''}.`
@@ -87,15 +102,17 @@ export default function App() {
   }
   function claimAndReturn() {
     const owners = { ...match.owners };
-    const atkName = PLAYERS[match.turn].name, defName = PLAYERS[otherPlayer(match.turn)].name;
+    const atk = match.turn, def = otherPlayer(match.turn);
+    const atkName = PLAYERS[atk].name, defName = PLAYERS[def].name;
     const biomeNm = activeHex ? BOARDS[curBiome(match.states, activeHex)].name : 'the field';
     const entries: string[] = [];
+    let gain: { player: PlayerId; species: string } | undefined;
     if (state?.winner && activeHex) {
-      if (state.winner === 'atk') { owners[activeHex] = match.turn; entries.push(`⚔️ ${atkName} won a ${biomeNm} hex.`); }
-      else if (state.winner === 'def') { owners[activeHex] = otherPlayer(match.turn); entries.push(`🛡️ ${defName} held ${biomeNm}.`); }
+      if (state.winner === 'atk') { owners[activeHex] = atk; entries.push(`⚔️ ${atkName} won a ${biomeNm} hex.`); if (state.species.def) gain = { player: atk, species: state.species.def }; }
+      else if (state.winner === 'def') { owners[activeHex] = def; entries.push(`🛡️ ${defName} held ${biomeNm}.`); if (state.species.atk) gain = { player: def, species: state.species.atk }; }
       else entries.push(`🤝 Stalemate at ${biomeNm}.`);
     }
-    finishTurn(owners, entries);
+    finishTurn(owners, entries, gain);
     setActiveHex(null); setPhase('map');
   }
   function endMatch() {

@@ -56,6 +56,10 @@ export function ProgressPanel({ match, log, onEnd }: { match: MatchState; log: s
           <span style={{ color: PLAYERS.p1.color }}>🟧 {heldBy(match, 'p1')} hex · {biomesControlledBy(match, 'p1')} 👑</span>
           <span style={{ color: PLAYERS.p2.color }}>🟪 {heldBy(match, 'p2')} hex · {biomesControlledBy(match, 'p2')} 👑</span>
         </div>
+        <div className="text-[10px] flex justify-between text-neutral-500 mt-0.5">
+          <span>🧬 {match.collection.p1.length} species</span>
+          <span>{match.collection.p2.length} species 🧬</span>
+        </div>
       </div>
 
       {/* log */}
