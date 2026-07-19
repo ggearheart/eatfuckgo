@@ -3,13 +3,11 @@ import type { Part, PartSrc } from '../engine/engine';
 export const PART_COLORS: Record<PartSrc, string> = {
   terrain: '#1e7a40',   // green — the biome
   scenario: '#2a6aa0',  // blue — this round's roll
-  cata: '#c02018',      // red — catastrophe
-  energy: '#a06a10',    // amber — your Fight allocation
+  energy: '#a06a10',    // amber — allocation
   lineage: '#7a4a1e',   // brown — stack coherence
-  keyword: '#5a4a38',   // slate — the card's own trait
   base: '#9a8878',
 };
-const LABEL: Partial<Record<PartSrc, string>> = { terrain: 'Terrain', scenario: 'Scenario', cata: 'Catastrophe', energy: 'Energy', lineage: 'Lineage', keyword: 'Keyword' };
+const LABEL: Partial<Record<PartSrc, string>> = { terrain: 'Biome', scenario: 'Scenario', energy: 'Energy', lineage: 'Lineage' };
 
 export function ModChips({ parts, hideBase = true }: { parts: Part[]; hideBase?: boolean }) {
   const shown = parts.filter((p) => !hideBase || p.src !== 'base');
@@ -26,7 +24,7 @@ export function ModChips({ parts, hideBase = true }: { parts: Part[]; hideBase?:
 }
 
 export function ModLegend() {
-  const items: PartSrc[] = ['terrain', 'scenario', 'cata', 'lineage', 'keyword'];
+  const items: PartSrc[] = ['terrain', 'scenario', 'lineage'];
   return (
     <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center text-[9px] font-semibold text-neutral-500 my-1">
       <span className="font-extrabold text-neutral-600">How this round is tilted:</span>

@@ -5,18 +5,17 @@ import type { Dispatch } from 'react';
 import type { State } from '../engine/engine';
 import type { Action } from '../store';
 import type { Side } from '../engine/data';
-import { BOARDS, TERRAIN_FX, CFG, WEIRDO_STACKS, EAT, FK, kwOf } from '../engine/data';
+import { BOARDS, CFG, WEIRDO_STACKS, EAT, FK } from '../engine/data';
 import {
   roller, firstPicker, secondPicker, deployTurn, diceProfile, expHits, sideName,
 } from '../engine/engine';
 import { ELEMENTS, TERRAIN_ELEMENTS, matchedElements, matchCount } from '../engine/elements';
-import { CardArt, KwTags } from '../components/CardArt';
+import { CardArt } from '../components/CardArt';
 import { ModChips, ModLegend } from '../components/ModChips';
 import { LifeTrack } from '../components/LifeTrack';
 import { DicePools } from '../components/DicePools';
 import { CardModal } from '../components/CardModal';
 
-const CATA_ROUND = 3;
 
 export function BattleScreen({ state: s, dispatch, onNewRandom, onExit, mapMode, biomeName, attackerName, defenderName, onClaim }: {
   state: State; dispatch: Dispatch<Action>; onNewRandom: () => void; onExit: () => void;
@@ -31,10 +30,9 @@ export function BattleScreen({ state: s, dispatch, onNewRandom, onExit, mapMode,
   const activeSide: Side | null = s.step === 'p1' ? firstPicker(s) : s.step === 'p2' ? secondPicker(s) : null;
 
   const steps = [
-    { cls: 'done', n: '① Terrain', sub: 'sets the stage' },
-    { cls: s.step === 'catacheck' || s.step === 'scenario' ? 'active' : 'done', n: '② Scenario', sub: 'rolled each round' },
-    { cls: deploying || s.step === 'ready' ? 'active' : '', n: '③ Choose strategy', sub: 'best for terrain + scenario' },
-    { cls: s.cata ? 'done' : s.step === 'catacheck' ? 'active' : s.cataChecked ? 'done' : '', n: '☄️ Catastrophe', sub: s.cata ? `${s.cata.name} struck` : s.cataChecked ? 'none — terrain rules' : `round ${CATA_ROUND}: matched dice` },
+    { cls: 'done', n: '① Biome', sub: 'sets the stage' },
+    { cls: s.step === 'scenario' ? 'active' : 'done', n: '② Scenario', sub: 'rolled each round' },
+    { cls: deploying || s.step === 'ready' ? 'active' : '', n: '③ Choose strategy', sub: 'best for biome + scenario' },
   ];
 
   const stepStyle = (cls: string) =>
@@ -74,38 +72,25 @@ export function BattleScreen({ state: s, dispatch, onNewRandom, onExit, mapMode,
 
         {/* Set variables */}
         <div className="flex gap-2 flex-wrap mb-2.5 text-[11px]">
-          <Chip on style={{ borderColor: '#3a7a4a', background: '#eef7f0' }}>{b.icon} Terrain: <b>{b.name}</b> <span className="text-sm">{(TERRAIN_ELEMENTS[s.terrain] || []).map((e) => ELEMENTS[e].icon).join('')}</span><br /><span className="text-[9px] text-neutral-500">supplies {(TERRAIN_ELEMENTS[s.terrain] || []).map((e) => ELEMENTS[e].name).join(', ')}</span></Chip>
+          <Chip on style={{ borderColor: '#3a7a4a', background: '#eef7f0' }}>{b.icon} Biome: <b>{b.name}</b> <span className="text-sm">{(TERRAIN_ELEMENTS[s.terrain] || []).map((e) => ELEMENTS[e].icon).join('')}</span><br /><span className="text-[9px] text-neutral-500">supplies {(TERRAIN_ELEMENTS[s.terrain] || []).map((e) => ELEMENTS[e].name).join(', ')}</span></Chip>
           <Chip on={scenarioSet} style={scenarioSet ? { borderColor: '#2a6aa0', background: '#eef4fb' } : {}}>{scenarioSet ? <>{s.scenario.icon} Scenario: <b>{s.scenario.name}</b><br /><span className="text-[9px] text-neutral-500">{s.scenario.tag}</span></> : <>🎲 Scenario: <b>— not yet rolled</b></>}</Chip>
-          <Chip on={!!s.cata} style={s.cata ? { borderColor: '#e02418', background: '#fdeeec' } : {}}>{s.cata ? <>{s.cata.icon} Catastrophe: <b>{s.cata.name}</b><br /><span className="text-[9px] text-neutral-500">{s.cata.head}</span></> : s.cataChecked ? <>🍃 Catastrophe: <b>none</b></> : <>☄️ Catastrophe: <b>checked round {CATA_ROUND}</b></>}</Chip>
           <Chip on style={{ marginLeft: 'auto', borderColor: accent }}>Round <b>{s.round}</b><br /><span className="text-[9px]">{theme === 'eat' ? '🦷 EAT · Power=OFF' : '🧬 F*CK · Power=REP'}</span></Chip>
         </div>
 
-        {/* Action: scenario roll or catastrophe check */}
-        {s.step === 'catacheck' ? (
-          <CataCheck s={s} dispatch={dispatch} />
-        ) : (
-          <div className="rounded-xl border-2 p-3 mb-2.5 text-[#dff]" style={{ background: theme === 'eat' ? '#3a1c0e' : '#241433', borderColor: accent }}>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              {scenarioSet ? (
-                <span className="text-sm font-black">{s.scenario.icon} {s.scenario.name} <span className="text-[11px] font-semibold text-[#9cf]">— {s.scenario.tag}</span></span>
-              ) : (
-                <>
-                  <span className="text-sm font-black">🎲 {sideName(roller(s))} rolls the round's scenario</span>
-                  <button onClick={() => dispatch({ t: 'rollScenario' })} className="px-3.5 py-1.5 rounded-lg border-2 border-black bg-[#ffd21a] text-ink text-xs font-black">🎲 Roll Scenario</button>
-                </>
-              )}
-            </div>
-            <div className="text-[12px] mt-1.5 italic text-[#cfe8ff]">{scenarioSet ? s.story : 'Each round the terrain throws a fresh challenge. Roll to reveal what this one demands…'}</div>
+        {/* Action: scenario roll */}
+        <div className="rounded-xl border-2 p-3 mb-2.5 text-[#dff]" style={{ background: theme === 'eat' ? '#3a1c0e' : '#241433', borderColor: accent }}>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {scenarioSet ? (
+              <span className="text-sm font-black">{s.scenario.icon} {s.scenario.name} <span className="text-[11px] font-semibold text-[#9cf]">— {s.scenario.tag}</span></span>
+            ) : (
+              <>
+                <span className="text-sm font-black">🎲 {sideName(roller(s))} rolls the round's scenario</span>
+                <button onClick={() => dispatch({ t: 'rollScenario' })} className="px-3.5 py-1.5 rounded-lg border-2 border-black bg-[#ffd21a] text-ink text-xs font-black">🎲 Roll Scenario</button>
+              </>
+            )}
           </div>
-        )}
-
-        {/* Persistent catastrophe banner */}
-        {s.cata && s.step !== 'catacheck' && (
-          <div className="flex items-center gap-2.5 rounded-xl border-2 border-[#e02418] bg-[#2a0e0e] text-[#ffd2c0] px-4 py-2.5 mb-3">
-            <span className="text-2xl">{s.cata.icon}</span>
-            <span><b className="text-[#ff7a6a]">{s.cata.name}</b> — {s.cata.head} <span className="text-[#d8a] text-[10px]">(rest of battle)</span></span>
-          </div>
-        )}
+          <div className="text-[12px] mt-1.5 italic text-[#cfe8ff]">{scenarioSet ? s.story : 'Each round the biome throws a fresh challenge. Roll to reveal what this one demands…'}</div>
+        </div>
 
         {/* Life + energy */}
         <div className="flex gap-3 mb-2.5">
@@ -175,7 +160,6 @@ export function BattleScreen({ state: s, dispatch, onNewRandom, onExit, mapMode,
 }
 
 function prompt(s: State) {
-  if (s.step === 'catacheck') return `☄️ Round ${CATA_ROUND} — roll for a catastrophe.`;
   if (s.step === 'scenario') return `🎲 ${sideName(roller(s))} rolls the scenario first.`;
   if (s.step === 'p1') return `${sideName(firstPicker(s))} deploys first — tap a strategy to preview, then ✓ Commit (or tap another to swap).`;
   if (s.step === 'p2') return `${sideName(secondPicker(s))} responds — preview, swap freely, then ✓ Commit.`;
@@ -236,7 +220,6 @@ function ArenaSlot({ side, s, onInspect }: { side: Side; s: State; onInspect: (v
       <div className="text-2xl font-black">🎲{p.dice}</div>
       <div className="text-[10px] font-extrabold text-neutral-500">hits on {p.hitOn}+ · ~{expHits(p).toFixed(1)} hits</div>
       <div className="mt-1 w-full"><ModChips parts={p.parts} /></div>
-      <div className="mt-1"><KwTags card={inst.card} /></div>
     </motion.div>
   );
 }
@@ -268,7 +251,7 @@ function Hand({ side, s, onInspect }: { side: Side; s: State; onInspect: (v: { s
     <div className="flex flex-col gap-1.5">
       {s.stack[side].map((inst, i) => {
         const p = diceProfile(s, inst, side, null);
-        const exhausted = inst.exhausted && !kwOf(inst.card).includes('swarm');
+        const exhausted = inst.exhausted;
         const previewing = deployTurn(s, side) && s.pending[side] === i;
         return (
           <motion.div key={i} layout whileHover={{ x: 3 }} onClick={() => onInspect({ side, idx: i })}
@@ -278,7 +261,6 @@ function Hand({ side, s, onInspect }: { side: Side; s: State; onInspect: (v: { s
             <span className="font-extrabold flex-1 leading-tight">
               {inst.card.n}{inst.isWeirdo ? ' 🧬' : ''}{inst.adapt ? <span className="text-[#1a8030]"> +{inst.adapt}</span> : ''}
               {previewing ? <span className="text-[#a07000] text-[9px] font-black"> ◀ previewing</span> : ''}
-              <br /><KwTags card={inst.card} />
             </span>
             <span className="font-black text-right">🎲{p.dice}<br /><span className="text-[8px] text-neutral-500">{p.hitOn}+</span></span>
           </motion.div>
@@ -288,27 +270,6 @@ function Hand({ side, s, onInspect }: { side: Side; s: State; onInspect: (v: { s
   );
 }
 
-function CataCheck({ s, dispatch }: { s: State; dispatch: Dispatch<Action> }) {
-  const FACE = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-  return (
-    <div className="rounded-xl border-2 border-[#e02418] bg-[#2a0e0e] text-[#ffd2c0] px-4 py-3 mb-2.5 text-center">
-      <div className="text-sm font-black text-[#ff9a6a]">☄️ Round {CATA_ROUND} — Catastrophe Check!</div>
-      <div className="text-[11px] my-1.5">Both players roll 1d6. <b>Match the number → a catastrophe warps the rest of the battle.</b> No match → terrain &amp; scenario rule.</div>
-      <div className="text-3xl my-1.5 min-h-[34px]">
-        {s.cataChecked && s.cataDice ? <><span className="text-eat">⚔️ {FACE[s.cataDice.a - 1]}</span> &nbsp; <span className="text-fk">🛡️ {FACE[s.cataDice.d - 1]}</span></> : '⚔️ ❓ 🛡️ ❓'}
-      </div>
-      {s.cataChecked && (
-        <div className="text-[12px] font-extrabold mb-1.5">
-          {s.cata ? <span className="text-[#ff7a6a]">☄️ MATCH on {s.cataDice!.a}! {s.cata.icon} <b>{s.cata.name}</b> — {s.cata.head}</span>
-            : <span className="text-[#bfe8c4]">🍃 {s.cataDice!.a} ≠ {s.cataDice!.d} — no catastrophe. Carry on.</span>}
-        </div>
-      )}
-      {!s.cataChecked
-        ? <button onClick={() => dispatch({ t: 'rollCata' })} className="px-4 py-1.5 rounded-lg border-2 border-black bg-[#ffd21a] text-ink text-[13px] font-black">🎲 Roll Both Dice</button>
-        : <button onClick={() => dispatch({ t: 'proceedCata' })} className="px-4 py-1.5 rounded-lg border-2 border-black bg-[#ffd21a] text-ink text-[13px] font-black">Continue →</button>}
-    </div>
-  );
-}
 
 function WeirdoBtn({ s, dispatch }: { s: State; dispatch: Dispatch<Action> }) {
   const [open, setOpen] = useState(false);
@@ -350,7 +311,7 @@ function MusterBtn({ s, dispatch }: { s: State; dispatch: Dispatch<Action> }) {
       <AnimatePresence>{open && (
         <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setOpen(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
           <motion.div className="bg-white rounded-2xl border-2 border-ink p-4 max-w-lg w-full" onClick={(e) => e.stopPropagation()} initial={{ scale: 0.9 }} animate={{ scale: 1 }}>
-            <h3 className="font-black mb-2">🌿 Muster a terrain-native strategy</h3>
+            <h3 className="font-black mb-2">🌿 Muster a biome-native strategy</h3>
             {opts.length ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {opts.map((c: any) => (
@@ -360,7 +321,7 @@ function MusterBtn({ s, dispatch }: { s: State; dispatch: Dispatch<Action> }) {
                   </button>
                 ))}
               </div>
-            ) : <div className="text-sm text-neutral-500">No new terrain-native strategies available.</div>}
+            ) : <div className="text-sm text-neutral-500">No new biome-native strategies available.</div>}
           </motion.div>
         </motion.div>
       )}</AnimatePresence>

@@ -7,8 +7,6 @@ import type { Side } from './engine/data';
 export type Action =
   | { t: 'new'; fac: { atk: 'eat' | 'fk'; def: 'eat' | 'fk' }; terrain: string; atkIds: string[]; defIds: string[] }
   | { t: 'rollScenario' }
-  | { t: 'rollCata' }
-  | { t: 'proceedCata' }
   | { t: 'select'; side: Side; idx: number }
   | { t: 'alloc'; side: Side; meta: number }
   | { t: 'commit' }
@@ -25,7 +23,6 @@ function clone(s: State): State {
     alloc: { atk: { ...s.alloc.atk }, def: { ...s.alloc.def } },
     stack: { atk: s.stack.atk.map((i: Inst) => ({ ...i })), def: s.stack.def.map((i: Inst) => ({ ...i })) },
     played: { ...s.played }, pending: { ...s.pending },
-    cataDice: s.cataDice ? { ...s.cataDice } : null,
     log: [...s.log],
   };
 }
@@ -36,8 +33,6 @@ function reducer(state: State | null, a: Action): State | null {
   const s = clone(state);
   switch (a.t) {
     case 'rollScenario': E.rollScenario(s); break;
-    case 'rollCata': E.rollCataCheck(s); break;
-    case 'proceedCata': E.proceedCata(s); break;
     case 'select': E.selectCard(s, a.side, a.idx); break;
     case 'alloc': E.setAlloc(s, a.side, a.meta); break;
     case 'commit': E.commitActive(s); break;
