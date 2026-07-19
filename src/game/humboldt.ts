@@ -25,19 +25,23 @@ export const ZONES: { id: string; name: string; biomes: string[] }[] = [
 ];
 export const zoneOf = (code: string) => ZONES.find((z) => z.biomes.includes(code));
 
-// owners is keyed by HEX id (see board.ts), not biome code.
+// owners/states are keyed by HEX id (see board.ts), not biome code.
 export interface MatchState {
   owners: Record<string, PlayerId | null>;
+  states: Record<string, string>; // hex id -> current biome code (mutated by the warming clock)
+  warming: number;                // 0..MAX_WARMING
+  turns: number;                  // turns (contests) resolved so far
   turn: PlayerId;
 }
 export function freshMatch(): MatchState {
   const owners: Record<string, PlayerId | null> = {};
-  HEXES.forEach((h) => (owners[h.id] = null));
+  const states: Record<string, string> = {};
+  HEXES.forEach((h) => { owners[h.id] = null; states[h.id] = h.biome; });
   (Object.keys(HOME) as PlayerId[]).forEach((p) => HOME[p].forEach((id) => (owners[id] = p)));
-  return { owners, turn: 'p1' };
+  return { owners, states, warming: 0, turns: 0, turn: 'p1' };
 }
 // hexes held by a player
 export const heldBy = (m: MatchState, p: PlayerId) => HEXES.filter((h) => m.owners[h.id] === p).length;
-// whole biomes (all patches) controlled by a player
+// whole biomes (all current patches) controlled by a player
 export const biomesControlledBy = (m: MatchState, p: PlayerId) =>
-  ALL_BIOMES.filter((code) => biomeOwner(m.owners, code) === p).length;
+  ALL_BIOMES.filter((code) => biomeOwner(m.owners, code, m.states) === p).length;

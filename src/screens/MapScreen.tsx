@@ -1,13 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { MapBoard } from '../components/MapBoard';
 import { PLAYERS, heldBy, biomesControlledBy, MatchState } from '../game/humboldt';
+import { STAGE_LABELS, MAX_WARMING } from '../game/board';
 
-export function MapScreen({ match, onPick, onEnd, onHome }: {
-  match: MatchState; onPick: (code: string) => void; onEnd: () => void; onHome: () => void;
+export function MapScreen({ match, onPick, onEnd, onHome, note }: {
+  match: MatchState; onPick: (code: string) => void; onEnd: () => void; onHome: () => void; note?: string | null;
 }) {
   const h1 = heldBy(match, 'p1'), h2 = heldBy(match, 'p2');
   const b1 = biomesControlledBy(match, 'p1'), b2 = biomesControlledBy(match, 'p2');
   const t = PLAYERS[match.turn];
+  const warmPct = (match.warming / MAX_WARMING) * 100;
   return (
     <div className="min-h-full p-3 max-w-[1040px] mx-auto">
       <div className="flex items-center gap-3 mb-2">
@@ -21,6 +23,22 @@ export function MapScreen({ match, onPick, onEnd, onHome }: {
         {t.dot} {t.name}'s turn — the glowing hexes border your ground. Tap one to contest it; win the clash → you take that hex.
       </div>
 
+      {/* warming clock */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs font-black whitespace-nowrap">🌡️ {STAGE_LABELS[match.warming]}</span>
+        <div className="relative flex-1 h-3 rounded-full border-2 border-ink overflow-hidden bg-white">
+          <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-500"
+            style={{ width: `${warmPct}%`, background: 'linear-gradient(90deg,#f2c14e,#e8743b,#c0392b)' }} />
+        </div>
+        <span className="text-[10px] text-neutral-500 whitespace-nowrap hidden sm:inline">🔥 hexes flag what warms next</span>
+      </div>
+
+      {note && (
+        <div className="rounded-lg border-2 border-red-400 bg-red-50 text-red-800 text-xs font-bold px-3 py-2 mb-2 text-center">
+          {note}
+        </div>
+      )}
+
       <MapBoard match={match} turn={match.turn} onPick={onPick} />
 
       <div className="flex items-center gap-4 justify-center mt-3 flex-wrap text-sm font-bold">
@@ -29,7 +47,7 @@ export function MapScreen({ match, onPick, onEnd, onHome }: {
         <button onClick={onEnd} className="px-3 py-1.5 rounded-lg border-2 border-ink bg-white font-extrabold text-xs">🏁 End match &amp; tally</button>
       </div>
       <p className="text-center text-[11px] text-neutral-500 mt-2 max-w-2xl mx-auto">
-        Expand from your 🏠 home along adjacent hexes. Hold every patch of a biome to control it (👑). Next up — the warming clock that flips hexes to new states as the planet heats.
+        Expand from your 🏠 home along adjacent hexes; hold every patch of a biome to control it (👑). Each turn the planet warms — 🔥 hexes transform to hotter states, dissolving biomes and forcing you to chase the shifting habitats.
       </p>
     </div>
   );

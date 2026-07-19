@@ -1,15 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { motion } from 'framer-motion';
 import { BOARDS } from '../engine/data';
-import { HEXES, hexPoints, HEX_R, HOME, BIOME_COLORS, contestableFor, biomeOwner } from '../game/board';
+import { HEXES, hexPoints, HEX_R, HOME, BIOME_COLORS, contestableFor, biomeOwner, curBiome, vulnerableHexes } from '../game/board';
 import { PLAYERS, PlayerId, MatchState } from '../game/humboldt';
 
 const HOME_HEXES = new Set([...HOME.p1, ...HOME.p2]);
 
 export function MapBoard({ match, turn, onPick }: { match: MatchState; turn: PlayerId; onPick: (id: string) => void }) {
   const contestable = contestableFor(match.owners, turn);
+  const vulnerable = vulnerableHexes(match);
   const controlled: Record<string, PlayerId | null> = {};
-  new Set(HEXES.map((h) => h.biome)).forEach((c) => (controlled[c] = biomeOwner(match.owners, c)));
+  new Set(Object.values(match.states)).forEach((c) => (controlled[c] = biomeOwner(match.owners, c, match.states)));
 
   return (
     <svg viewBox="0 0 1000 620" className="w-full h-auto rounded-xl border-4 border-ink"
@@ -33,13 +34,15 @@ export function MapBoard({ match, turn, onPick }: { match: MatchState; turn: Pla
 
       {/* hex spots */}
       {HEXES.map((h) => {
+        const code = curBiome(match.states, h.id);
         const owner = match.owners[h.id];
         const canPick = contestable.has(h.id);
         const isHome = HOME_HEXES.has(h.id);
-        const b = BOARDS[h.biome];
-        const fill = BIOME_COLORS[h.biome] || '#c9bfa6';
+        const atRisk = vulnerable.has(h.id);
+        const b = BOARDS[code];
+        const fill = BIOME_COLORS[code] || '#c9bfa6';
         const ring = owner ? PLAYERS[owner].color : '#6f5f3e';
-        const wholeBiome = controlled[h.biome];
+        const wholeBiome = controlled[code];
         return (
           <motion.g key={h.id} style={{ cursor: canPick ? 'pointer' : 'default' }}
             onClick={() => canPick && onPick(h.id)}
@@ -56,6 +59,7 @@ export function MapBoard({ match, turn, onPick }: { match: MatchState; turn: Pla
               style={{ paintOrder: 'stroke' } as any} stroke="#fffdf5" strokeWidth="0.6">{b.icon}</text>
             {isHome && <text x={h.x} y={h.y - 17} textAnchor="middle" fontSize="12">🏠</text>}
             {wholeBiome && <text x={h.x + 19} y={h.y - 13} textAnchor="middle" fontSize="13">👑</text>}
+            {atRisk && <text x={h.x - 19} y={h.y - 13} textAnchor="middle" fontSize="11">🔥</text>}
           </motion.g>
         );
       })}

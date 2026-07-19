@@ -3,7 +3,7 @@
 // 10 biomes, each split into 1–3 hex "spots" whose count roughly tracks how
 // much of the real world that habitat covers. You control a biome only when
 // you hold ALL of its hexes. Movement is adjacency-based (see contestableFor).
-import type { PlayerId } from './humboldt';
+import type { PlayerId, MatchState } from './humboldt';
 
 // Rows top→base of the mountain — a regular 1…8 triangle of 36 hex spots.
 // Counts (≈ real habitat extent): F6 D6 I4 A4 S4 O4 V2 C2 P2 G2. Forest on the
@@ -44,7 +44,10 @@ export const HEXES: Hex[] = [];
 
 export const HEX_BY_ID: Record<string, Hex> = Object.fromEntries(HEXES.map((h) => [h.id, h]));
 export const hexBiome = (id: string) => HEX_BY_ID[id]?.biome;
-export const hexesOfBiome = (code: string) => HEXES.filter((h) => h.biome === code).map((h) => h.id);
+// current biome of a hex, honoring warming transformations (falls back to base)
+export const curBiome = (states: Record<string, string> | undefined, id: string) => states?.[id] ?? hexBiome(id);
+export const hexesOfBiome = (code: string, states?: Record<string, string>) =>
+  HEXES.filter((h) => (states ? states[h.id] : h.biome) === code).map((h) => h.id);
 
 // Adjacency by proximity — immediate hex neighbors share an edge (~DX apart).
 const TH = DX * 1.15;
@@ -93,10 +96,62 @@ export function contestableFor(owners: Record<string, PlayerId | null>, player: 
   return out;
 }
 
-// A biome is controlled only when one player holds every hex of it.
-export function biomeOwner(owners: Record<string, PlayerId | null>, code: string): PlayerId | null {
-  const hs = hexesOfBiome(code);
+// A biome is controlled only when one player holds every (current) hex of it.
+export function biomeOwner(owners: Record<string, PlayerId | null>, code: string, states?: Record<string, string>): PlayerId | null {
+  const hs = hexesOfBiome(code, states);
+  if (!hs.length) return null;
   const first = owners[hs[0]];
   if (!first) return null;
   return hs.every((id) => owners[id] === first) ? first : null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The warming clock. Temperature rises one stage every TURNS_PER_STAGE turns;
+// at each step the most heat-vulnerable hexes transform to a hotter state.
+export const STAGE_LABELS = ['Holocene', '+1.5 °C', '+2 °C', '+3 °C', '+4 °C', 'New Planet'];
+export const MAX_WARMING = STAGE_LABELS.length - 1;
+const TURNS_PER_STAGE = 3;
+const RATE = 3; // hexes that can flip per warming step (so change creeps, not snaps)
+
+// what each biome becomes as it heats (absent = a thermal refuge, never changes)
+export const TRANSITIONS: Record<string, string> = { I: 'P', S: 'O', A: 'D', F: 'A' };
+// the warming stage at which a biome first becomes vulnerable
+const HEAT_STAGE: Record<string, number> = { I: 1, S: 2, A: 2, F: 3 };
+
+const eligible = (states: Record<string, string>, warming: number) =>
+  HEXES.filter((h) => {
+    const b = states[h.id];
+    return TRANSITIONS[b] && HEAT_STAGE[b] <= warming;
+  });
+
+export interface HexChange { id: string; from: string; to: string; }
+
+// Advance one turn; on a stage boundary, warm the planet and flip up to RATE hexes.
+export function tickClock(m: MatchState): { turns: number; warming: number; states: Record<string, string>; changed: HexChange[] } {
+  const turns = m.turns + 1;
+  let warming = m.warming;
+  let states = m.states;
+  const changed: HexChange[] = [];
+  if (turns % TURNS_PER_STAGE === 0 && warming < MAX_WARMING) {
+    warming += 1;
+    const pick = eligible(states, warming)
+      .sort((a, b) =>
+        (warming - HEAT_STAGE[states[b.id]]) - (warming - HEAT_STAGE[states[a.id]]) || // most overdue first
+        b.row - a.row ||                                                                // then lowest / warmest
+        a.id.localeCompare(b.id))
+      .slice(0, RATE);
+    states = { ...states };
+    pick.forEach((h) => {
+      const from = states[h.id], to = TRANSITIONS[from];
+      changed.push({ id: h.id, from, to });
+      states[h.id] = to;
+    });
+  }
+  return { turns, warming, states, changed };
+}
+
+// Hexes that will transform on or before the next warming step — flagged on the map.
+export function vulnerableHexes(m: MatchState): Set<string> {
+  const w = Math.min(m.warming + 1, MAX_WARMING);
+  return new Set(eligible(m.states, w).map((h) => h.id));
 }
