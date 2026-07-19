@@ -1,0 +1,162 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Pre-clash setup: attacker picks EAT/F*CK mode → the game maps their strategies
+// to the species that carry them in this biome → attacker names a DOMINANT
+// species. Then the defender sees it and either concedes or names their own
+// dominant species. The result launches the clash (each dominant species bonused).
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { BOARDS, BIOME_AFFINITY } from '../engine/data';
+import { curBiome } from '../game/board';
+import { PLAYERS, otherPlayer, FACTION, Faction, MatchState } from '../game/humboldt';
+import { speciesInBiome, speciesCat, stratName, Species } from '../game/species';
+
+export interface ContestResult {
+  atkMode: Faction; atkIds: string[]; atkLead: string; atkSpecies: string;
+  defMode: Faction; defIds: string[]; defLead: string; defSpecies: string;
+}
+
+type Step = 'atkMode' | 'atkPick' | 'handoff' | 'defView' | 'defPick';
+
+const rosterFor = (biome: string, mode: Faction) => speciesInBiome(biome).filter((s) => speciesCat(s) === mode);
+const stratsOf = (list: Species[]) => Array.from(new Set(list.map((s) => s.strategy)));
+
+function SpeciesGrid({ list, chosen, onPick, color }: { list: Species[]; chosen: string | null; onPick: (id: string) => void; color: string }) {
+  return (
+    <div className="grid grid-cols-2 gap-2 my-3">
+      {list.map((sp) => {
+        const on = chosen === sp.id;
+        return (
+          <button key={sp.id} onClick={() => onPick(sp.id)}
+            className="flex items-center gap-2 p-2 rounded-xl border-2 text-left transition-transform hover:-translate-y-0.5"
+            style={on ? { borderColor: color, background: '#fffdf5', boxShadow: `0 0 0 2px ${color}` } : { borderColor: '#e2d8c6', background: '#fff' }}>
+            <span className="text-2xl">{sp.emoji}</span>
+            <span className="leading-tight">
+              <span className="block text-xs font-black">{sp.name}{on ? ' 👑' : ''}</span>
+              <span className="block text-[10px] text-neutral-500">{stratName(sp.strategy)}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function ContestSetup({ match, hex, onLaunch, onConcede, onCancel }: {
+  match: MatchState; hex: string; onLaunch: (r: ContestResult) => void; onConcede: () => void; onCancel: () => void;
+}) {
+  const biome = curBiome(match.states, hex);
+  const b = BOARDS[biome];
+  const atk = match.turn, def = otherPlayer(match.turn);
+  const aff = BIOME_AFFINITY[biome];
+
+  const [step, setStep] = useState<Step>('atkMode');
+  const [atkMode, setAtkMode] = useState<Faction>(PLAYERS[atk].fac);
+  const [atkSpecies, setAtkSpecies] = useState<string | null>(null);
+  const [defMode, setDefMode] = useState<Faction>(PLAYERS[def].fac);
+  const [defSpecies, setDefSpecies] = useState<string | null>(null);
+
+  const atkRoster = rosterFor(biome, atkMode);
+  const defRoster = rosterFor(biome, defMode);
+  const spById = (id: string | null) => (id ? speciesInBiome(biome).find((s) => s.id === id) : null);
+
+  const affTag = (
+    <span className="text-[11px] text-neutral-500">this biome favors {FACTION[aff].icon} <b>{FACTION[aff].name}</b> (+1 die)</span>
+  );
+  const modeButtons = (val: Faction, set: (f: Faction) => void, team: Faction) => (
+    <div className="flex gap-2 justify-center my-2">
+      {(['eat', 'fk'] as Faction[]).map((f) => (
+        <button key={f} onClick={() => set(f)}
+          className="px-4 py-2 rounded-xl border-2 font-extrabold text-sm"
+          style={val === f ? { borderColor: '#1a0e04', background: f === 'eat' ? '#c4561e' : '#7b4fa0', color: '#fff' } : { borderColor: '#d4d4d4', color: '#888', background: '#fff' }}>
+          {FACTION[f].icon} {FACTION[f].name}{f === team ? ' ★' : ''}
+        </button>
+      ))}
+    </div>
+  );
+
+  function launch() {
+    const aSp = spById(atkSpecies)!, dSp = spById(defSpecies)!;
+    onLaunch({
+      atkMode, atkIds: stratsOf(atkRoster), atkLead: aSp.strategy, atkSpecies: aSp.id,
+      defMode, defIds: stratsOf(defRoster), defLead: dSp.strategy, defSpecies: dSp.id,
+    });
+  }
+
+  return (
+    <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onCancel}>
+      <motion.div className="bg-white rounded-2xl border-2 border-ink p-5 max-w-md w-full shadow-comic max-h-[92vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()} initial={{ scale: 0.92, y: 16 }} animate={{ scale: 1, y: 0 }}>
+        <div className="text-center font-black text-sm">{b.icon} {b.name} — {affTag}</div>
+
+        <AnimatePresence mode="wait">
+          {/* ── attacker: pick mode ── */}
+          {step === 'atkMode' && (
+            <motion.div key="am" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="text-center text-sm font-bold mt-2" style={{ color: PLAYERS[atk].color }}>{PLAYERS[atk].dot} {PLAYERS[atk].name} — how will you fight this biome?</div>
+              {modeButtons(atkMode, setAtkMode, PLAYERS[atk].fac)}
+              <div className="text-[11px] text-neutral-500 text-center">★ = your team. You may fight in either mode.</div>
+              <button onClick={() => setStep('atkPick')} className="mt-3 w-full py-2.5 rounded-xl border-2 border-ink bg-ink text-white font-extrabold">Field your {FACTION[atkMode].name} species →</button>
+              <button onClick={onCancel} className="mt-2 text-xs text-neutral-500 underline block mx-auto">cancel</button>
+            </motion.div>
+          )}
+
+          {/* ── attacker: pick dominant species ── */}
+          {step === 'atkPick' && (
+            <motion.div key="ap" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="text-center text-xs font-bold mt-2">{FACTION[atkMode].icon} Your {FACTION[atkMode].name} species in {b.name} — name your <b>dominant species</b> to lead the clash:</div>
+              <SpeciesGrid list={atkRoster} chosen={atkSpecies} onPick={setAtkSpecies} color={PLAYERS[atk].color} />
+              <div className="flex gap-2">
+                <button onClick={() => setStep('atkMode')} className="px-3 py-2 rounded-lg border-2 border-ink bg-white text-xs font-bold">← mode</button>
+                <button disabled={!atkSpecies} onClick={() => setStep('handoff')}
+                  className="flex-1 py-2.5 rounded-xl border-2 border-ink text-white font-extrabold disabled:opacity-40"
+                  style={{ background: PLAYERS[atk].color }}>Lock in {spById(atkSpecies)?.emoji ?? ''} →</button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── handoff (hotseat privacy) ── */}
+          {step === 'handoff' && (
+            <motion.div key="ho" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-6">
+              <div className="text-4xl mb-2">🤝</div>
+              <div className="font-black">Pass the device to {PLAYERS[def].dot} {PLAYERS[def].name}</div>
+              <div className="text-[11px] text-neutral-500 mt-1">They'll see the attacker's dominant species and decide.</div>
+              <button onClick={() => setStep('defView')} className="mt-4 px-5 py-2.5 rounded-xl border-2 border-ink font-extrabold text-white" style={{ background: PLAYERS[def].color }}>I'm {PLAYERS[def].name} — reveal →</button>
+            </motion.div>
+          )}
+
+          {/* ── defender: sees attacker's pick + roster ── */}
+          {step === 'defView' && (
+            <motion.div key="dv" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="mt-2 rounded-xl border-2 px-3 py-2 text-center" style={{ borderColor: PLAYERS[atk].color, background: atkMode === 'eat' ? '#fdf0ea' : '#f3ecfa' }}>
+                <div className="text-[11px] font-bold" style={{ color: PLAYERS[atk].color }}>{PLAYERS[atk].name} attacks as {FACTION[atkMode].icon} {FACTION[atkMode].name}, led by</div>
+                <div className="text-lg font-black">{spById(atkSpecies)?.emoji} {spById(atkSpecies)?.name}</div>
+                <div className="text-[10px] text-neutral-500">fielding: {atkRoster.map((s) => s.emoji).join(' ')}</div>
+              </div>
+              <div className="text-center text-sm font-bold mt-3" style={{ color: PLAYERS[def].color }}>{PLAYERS[def].dot} {PLAYERS[def].name} — answer or concede?</div>
+              {modeButtons(defMode, setDefMode, PLAYERS[def].fac)}
+              <div className="flex gap-2 mt-1">
+                <button onClick={onConcede} className="px-3 py-2.5 rounded-xl border-2 border-ink bg-white text-xs font-extrabold text-neutral-600">🏳️ Concede hex</button>
+                <button onClick={() => setStep('defPick')} className="flex-1 py-2.5 rounded-xl border-2 border-ink text-white font-extrabold" style={{ background: PLAYERS[def].color }}>Field {FACTION[defMode].name} species →</button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── defender: pick dominant species ── */}
+          {step === 'defPick' && (
+            <motion.div key="dp" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <div className="text-center text-xs font-bold mt-2">{FACTION[defMode].icon} Your {FACTION[defMode].name} species — name your <b>dominant species</b> to face {spById(atkSpecies)?.emoji}:</div>
+              <SpeciesGrid list={defRoster} chosen={defSpecies} onPick={setDefSpecies} color={PLAYERS[def].color} />
+              <div className="flex gap-2">
+                <button onClick={() => setStep('defView')} className="px-3 py-2 rounded-lg border-2 border-ink bg-white text-xs font-bold">←</button>
+                <button onClick={onConcede} className="px-3 py-2 rounded-lg border-2 border-ink bg-white text-xs font-bold text-neutral-600">🏳️ Concede</button>
+                <button disabled={!defSpecies} onClick={launch}
+                  className="flex-1 py-2.5 rounded-xl border-2 border-ink text-white font-extrabold disabled:opacity-40"
+                  style={{ background: PLAYERS[def].color }}>⚔️ Clash!</button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </motion.div>
+  );
+}

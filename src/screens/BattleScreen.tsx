@@ -6,6 +6,7 @@ import type { State } from '../engine/engine';
 import type { Action } from '../store';
 import type { Side } from '../engine/data';
 import { BOARDS, CFG, WEIRDO_STACKS, EAT, FK } from '../engine/data';
+import { SPECIES_BY_ID } from '../game/species';
 import {
   roller, firstPicker, secondPicker, deployTurn, diceProfile, expHits, sideName,
 } from '../engine/engine';
@@ -76,6 +77,15 @@ export function BattleScreen({ state: s, dispatch, onNewRandom, onExit, mapMode,
           <Chip on={scenarioSet} style={scenarioSet ? { borderColor: '#2a6aa0', background: '#eef4fb' } : {}}>{scenarioSet ? <>{s.scenario.icon} Scenario: <b>{s.scenario.name}</b><br /><span className="text-[9px] text-neutral-500">{s.scenario.tag}</span></> : <>🎲 Scenario: <b>— not yet rolled</b></>}</Chip>
           <Chip on style={{ marginLeft: 'auto', borderColor: accent }}>Round <b>{s.round}</b><br /><span className="text-[9px]">{theme === 'eat' ? '🦷 EAT · Power=OFF' : '🧬 F*CK · Power=REP'}</span></Chip>
         </div>
+
+        {/* Dominant species face-off */}
+        {(s.species.atk || s.species.def) && (
+          <div className="flex items-center justify-center gap-3 mb-2.5 text-xs font-black rounded-xl border-2 py-1.5" style={{ borderColor: '#d4a017', background: '#fffdf3' }}>
+            <span style={{ color: '#c4561e' }}>{SPECIES_BY_ID[s.species.atk!]?.emoji} {SPECIES_BY_ID[s.species.atk!]?.name}</span>
+            <span className="text-neutral-400">👑 vs 👑</span>
+            <span style={{ color: '#7b4fa0' }}>{SPECIES_BY_ID[s.species.def!]?.emoji} {SPECIES_BY_ID[s.species.def!]?.name}</span>
+          </div>
+        )}
 
         {/* Action: scenario roll */}
         <div className="rounded-xl border-2 p-3 mb-2.5 text-[#dff]" style={{ background: theme === 'eat' ? '#3a1c0e' : '#241433', borderColor: accent }}>

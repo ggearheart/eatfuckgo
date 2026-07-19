@@ -4,10 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useBattle } from './store';
 import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
-import { EAT, FK, BOARDS, BIOME_AFFINITY } from './engine/data';
+import { EAT, FK, BOARDS } from './engine/data';
 import { freshMatch, otherPlayer, heldBy, biomesControlledBy, matchWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, FACTION, PLAYERS, MatchState, Faction } from './game/humboldt';
-import { curBiome, hexesOfBiome, tickClock, foothold, STAGE_LABELS } from './game/board';
-import { BiomeDossier } from './components/BiomeDossier';
+import { curBiome, tickClock, STAGE_LABELS } from './game/board';
+import { ContestSetup, ContestResult } from './components/ContestSetup';
 
 const rand = (n: number) => Math.floor(Math.random() * n);
 function randStack(deck: any[], n: number): string[] {
@@ -41,47 +41,24 @@ export default function App() {
     const def: Faction = atk === 'eat' ? 'fk' : 'eat';
     const terrain = TERRAINS[rand(TERRAINS.length)];
     setActiveHex(null);
-    dispatch({ t: 'new', fac: { atk, def }, terrain, atkIds: randStack(deckOf(atk), 2 + rand(4)), defIds: randStack(deckOf(def), 2 + rand(4)) });
+    dispatch({ t: 'new', setup: { fac: { atk, def }, terrain, atkIds: randStack(deckOf(atk), 2 + rand(4)), defIds: randStack(deckOf(def), 2 + rand(4)) } });
     setPhase('battle');
   }
 
   // ── Humboldt match ──
   function startMatch() { setPlayerNames(p1Name, p2Name); setPlayerFactions(p1Fac, p2Fac); setMatch(freshMatch()); setResult(null); setWarmingNote(null); setLog([`🌱 ${PLAYERS.p1.name} (${FACTION[p1Fac].name}) vs ${PLAYERS.p2.name} (${FACTION[p2Fac].name}) — the mountain awaits.`]); setPhase('map'); }
   function pickBiome(id: string) { setWarmingNote(null); setPending(id); }
-  // contest: you fight as your faction; the defender fights as theirs (or the biome's, if wild)
-  function contest() {
-    const hex = pending!; setPending(null); setActiveHex(hex);
-    const atkFac = PLAYERS[match.turn].fac;
-    const defOwner = match.owners[hex];
-    const defFac: Faction = defOwner ? PLAYERS[defOwner].fac : BIOME_AFFINITY[curBiome(match.states, hex)];
-    // territory economy: your foothold (adjacent held hexes) deepens your hand
-    const atkN = Math.min(5, 2 + foothold(match.owners, hex, match.turn));
-    const defN = defOwner ? Math.min(5, 2 + foothold(match.owners, hex, defOwner)) : 3; // wild incumbency
-    dispatch({ t: 'new', fac: { atk: atkFac, def: defFac }, terrain: curBiome(match.states, hex), atkIds: randStack(deckOf(atkFac), atkN), defIds: randStack(deckOf(defFac), defN) });
-    setPhase('battle');
-  }
-  function claimAndReturn() {
-    const owners = { ...match.owners };
-    const atkName = PLAYERS[match.turn].name, defName = PLAYERS[otherPlayer(match.turn)].name;
-    const biomeNm = activeHex ? BOARDS[curBiome(match.states, activeHex)].name : 'the field';
-    const entries: string[] = [];
-    if (state?.winner && activeHex) {
-      const atk = match.turn, def = otherPlayer(match.turn);
-      if (state.winner === 'atk') { owners[activeHex] = atk; entries.push(`⚔️ ${atkName} won a ${biomeNm} hex.`); }
-      else if (state.winner === 'def') { owners[activeHex] = def; entries.push(`🛡️ ${defName} held ${biomeNm}.`); }
-      else entries.push(`🤝 Stalemate at ${biomeNm}.`);
-    }
-    const tick = tickClock(match); // every turn advances the warming clock
-    // migration teeth: a transforming hex displaces whoever held it — it goes neutral
+  // finish a turn: advance the warming clock, apply migration displacement, check victory, log
+  function finishTurn(owners: Record<string, any>, entries: string[]) {
+    const tick = tickClock(match);
     const displaced = tick.changed.filter((c) => owners[c.id]).length;
-    tick.changed.forEach((c) => { if (owners[c.id]) owners[c.id] = null; });
+    tick.changed.forEach((c) => { if (owners[c.id]) owners[c.id] = null; }); // migration teeth
     if (tick.changed.length) entries.push(`🔥 ${STAGE_LABELS[tick.warming]}: ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''}` : ''}.`);
     const next = { ...match, owners, states: tick.states, warming: tick.warming, turns: tick.turns, turn: otherPlayer(match.turn) };
     setMatch(next);
     setWarmingNote(tick.changed.length
       ? `🔥 The planet warmed to ${STAGE_LABELS[tick.warming]} — ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''} (now neutral)` : ''}.`
       : null);
-    // victory: someone now controls a majority of the living biomes
     const won = matchWinner(next);
     if (won) {
       const name = PLAYERS[won].name, n = biomesControlledBy(next, won), need = biomeWinThreshold(next);
@@ -89,6 +66,36 @@ export default function App() {
       setResult(`🏆 ${name} wins — controlling ${n} of ${livingBiomes(next).length} living biomes (majority needed: ${need}).`);
     }
     if (entries.length) setLog((l) => [...l, ...entries]);
+  }
+
+  // launch the clash from the pre-clash species setup
+  function launchContest(r: ContestResult) {
+    const hex = pending!; setPending(null); setActiveHex(hex);
+    dispatch({ t: 'new', setup: {
+      fac: { atk: r.atkMode, def: r.defMode }, terrain: curBiome(match.states, hex),
+      atkIds: r.atkIds, defIds: r.defIds,
+      lead: { atk: r.atkLead, def: r.defLead }, species: { atk: r.atkSpecies, def: r.defSpecies },
+    } });
+    setPhase('battle');
+  }
+  // defender conceded — attacker takes the hex without a clash
+  function concedeContest() {
+    const hex = pending!; setPending(null);
+    const owners = { ...match.owners }; owners[hex] = match.turn;
+    finishTurn(owners, [`🏳️ ${PLAYERS[otherPlayer(match.turn)].name} conceded ${BOARDS[curBiome(match.states, hex)].name} to ${PLAYERS[match.turn].name}.`]);
+    setPhase('map');
+  }
+  function claimAndReturn() {
+    const owners = { ...match.owners };
+    const atkName = PLAYERS[match.turn].name, defName = PLAYERS[otherPlayer(match.turn)].name;
+    const biomeNm = activeHex ? BOARDS[curBiome(match.states, activeHex)].name : 'the field';
+    const entries: string[] = [];
+    if (state?.winner && activeHex) {
+      if (state.winner === 'atk') { owners[activeHex] = match.turn; entries.push(`⚔️ ${atkName} won a ${biomeNm} hex.`); }
+      else if (state.winner === 'def') { owners[activeHex] = otherPlayer(match.turn); entries.push(`🛡️ ${defName} held ${biomeNm}.`); }
+      else entries.push(`🤝 Stalemate at ${biomeNm}.`);
+    }
+    finishTurn(owners, entries);
     setActiveHex(null); setPhase('map');
   }
   function endMatch() {
@@ -119,49 +126,8 @@ export default function App() {
         <MapScreen match={match} onPick={pickBiome} onEnd={endMatch} onHome={() => setPhase('home')} note={warmingNote} log={log} />
         <AnimatePresence>
           {pending && (
-            <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setPending(null)}>
-              <motion.div className="bg-white rounded-2xl border-2 border-ink p-5 max-w-sm w-full shadow-comic max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} initial={{ scale: 0.9, y: 16 }} animate={{ scale: 1, y: 0 }}>
-                <div className="font-black text-sm mb-1 text-center" style={{ color: PLAYERS[match.turn].color }}>{PLAYERS[match.turn].dot} {PLAYERS[match.turn].name} contests this hex</div>
-                {(() => {
-                  const code = curBiome(match.states, pending); const hs = hexesOfBiome(code, match.states);
-                  const mine = hs.filter((id) => match.owners[id] === match.turn).length;
-                  return (
-                    <div className="text-[11px] text-neutral-500 mb-2 text-center">
-                      {BOARDS[code].icon} {BOARDS[code].name} · patch {hs.indexOf(pending) + 1} of {hs.length}
-                      {hs.length > 1 && <> — you hold {mine}/{hs.length}. Take them all to control the biome 👑</>}
-                    </div>
-                  );
-                })()}
-                <BiomeDossier code={curBiome(match.states, pending)} />
-                {(() => {
-                  const code = curBiome(match.states, pending);
-                  const atkFh = foothold(match.owners, pending, match.turn);
-                  const defOwner = match.owners[pending];
-                  const atkN = Math.min(5, 2 + atkFh);
-                  const defN = defOwner ? Math.min(5, 2 + foothold(match.owners, pending, defOwner)) : 3;
-                  const atkFac = PLAYERS[match.turn].fac;
-                  const defFac: Faction = defOwner ? PLAYERS[defOwner].fac : BIOME_AFFINITY[code];
-                  const aff = BIOME_AFFINITY[code];
-                  return (
-                    <>
-                      <div className="text-[12px] mt-3 text-center rounded-lg bg-stone-100 border border-stone-300 px-2 py-2">
-                        <div className="font-bold">
-                          {FACTION[atkFac].icon} You fight as <b>{FACTION[atkFac].name}</b> · {atkN} strateg{atkN === 1 ? 'y' : 'ies'}
-                          <span className="text-neutral-400"> vs </span>
-                          {FACTION[defFac].icon} {defOwner ? PLAYERS[defOwner].name : 'the wild'} <b>{FACTION[defFac].name}</b> · {defN}
-                        </div>
-                        <div className="text-[10px] text-neutral-500 mt-1">🏰 Foothold +{atkFh} · this biome favors {FACTION[aff].icon} <b>{FACTION[aff].name}</b> (+1 die to them)</div>
-                      </div>
-                      <button onClick={contest} className="mt-3 w-full px-5 py-3 rounded-xl border-2 border-ink text-white font-extrabold shadow-comic"
-                        style={{ background: atkFac === 'eat' ? '#c4561e' : '#7b4fa0' }}>
-                        ⚔️ Contest as {FACTION[atkFac].icon} {FACTION[atkFac].name}
-                      </button>
-                    </>
-                  );
-                })()}
-                <button onClick={() => setPending(null)} className="mt-3 text-xs text-neutral-500 underline block mx-auto">cancel</button>
-              </motion.div>
-            </motion.div>
+            <ContestSetup match={match} hex={pending}
+              onLaunch={launchContest} onConcede={concedeContest} onCancel={() => setPending(null)} />
           )}
           {result && (
             <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>

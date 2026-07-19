@@ -22,6 +22,8 @@ export interface State {
   alloc: Record<Side, { meta: number; repro: number }>;
   stack: Record<Side, Inst[]>; played: Record<Side, number | null>; pending: Record<Side, number | null>;
   scenario: any | null; story: string;
+  lead: { atk: string | null; def: string | null }; // dominant species' strategy id per side
+  species: { atk: string | null; def: string | null }; // dominant species id per side (display)
   weirdoUsed: boolean; musterUsed: boolean; winner: string | null; outcome: string; log: string[];
   lastRoll: LastRoll | null;
 }
@@ -41,7 +43,14 @@ export const deployTurn = (s: State, side: Side) =>
 const mkInst = (card: any, isWeirdo = false): Inst => ({ card, adapt: 0, exhausted: false, isWeirdo });
 const log = (s: State, m: string) => { s.log.push(m); };
 
-export function newBattle(fac: { atk: 'eat' | 'fk'; def: 'eat' | 'fk' }, terrain: string, atkIds: string[], defIds: string[]): State {
+export interface BattleSetup {
+  fac: { atk: 'eat' | 'fk'; def: 'eat' | 'fk' };
+  terrain: string; atkIds: string[]; defIds: string[];
+  lead?: { atk: string | null; def: string | null };     // dominant species' strategy id
+  species?: { atk: string | null; def: string | null };  // dominant species id
+}
+export function newBattle(setup: BattleSetup): State {
+  const { fac, terrain, atkIds, defIds } = setup;
   const deckOf = (f: 'eat' | 'fk') => (f === 'eat' ? EAT : FK);
   const pick = (f: 'eat' | 'fk', ids: string[]) => deckOf(f).filter((c) => ids.includes(c.id)).map((c) => mkInst(c));
   const s: State = {
@@ -50,6 +59,8 @@ export function newBattle(fac: { atk: 'eat' | 'fk'; def: 'eat' | 'fk' }, terrain
     alloc: { atk: { meta: E, repro: 0 }, def: { meta: E, repro: 0 } },
     stack: { atk: pick(fac.atk, atkIds), def: pick(fac.def, defIds) }, played: { atk: null, def: null }, pending: { atk: null, def: null },
     scenario: null, story: '',
+    lead: setup.lead ?? { atk: null, def: null },
+    species: setup.species ?? { atk: null, def: null },
     weirdoUsed: false, musterUsed: false, winner: null, outcome: '',
     log: [`⚔️ Biome Clash in ${BOARDS[terrain].name}! Life ${START_LIFE} each.`], lastRoll: null,
   };
@@ -93,6 +104,8 @@ export function diceProfile(s: State, inst: Inst, side: Side | null, oppCard: an
   const matched = matchedElements(c, s.terrain);
   if (matched.length) { dice += matched.length; add(`+${matched.length} dice · suits ${matched.map((e) => ELEMENTS[e].icon).join('')}`, 'terrain'); }
   else { dice -= 1; add('−1 die · unsuited to biome', 'terrain'); }
+  // dominant species: the strategy the player named as their champion gets the bonus
+  if (side && s.lead[side] === c.id) { dice += 2; add('+2 dice · 👑 dominant species', 'lineage'); }
   if (side) {
     let lin = 0;
     s.stack[side].forEach((o) => { if (o !== inst && o.card.t < c.t && (o.card.ter || []).some((t: string) => (c.ter || []).includes(t))) lin++; });

@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useReducer } from 'react';
 import * as E from './engine/engine';
-import type { State, Inst } from './engine/engine';
+import type { State, Inst, BattleSetup } from './engine/engine';
 import type { Side } from './engine/data';
 
 export type Action =
-  | { t: 'new'; fac: { atk: 'eat' | 'fk'; def: 'eat' | 'fk' }; terrain: string; atkIds: string[]; defIds: string[] }
+  | { t: 'new'; setup: BattleSetup }
   | { t: 'rollScenario' }
   | { t: 'select'; side: Side; idx: number }
   | { t: 'alloc'; side: Side; meta: number }
@@ -28,7 +28,7 @@ function clone(s: State): State {
 }
 
 function reducer(state: State | null, a: Action): State | null {
-  if (a.t === 'new') return E.newBattle(a.fac, a.terrain, a.atkIds, a.defIds);
+  if (a.t === 'new') return E.newBattle(a.setup);
   if (!state) return state;
   const s = clone(state);
   switch (a.t) {
