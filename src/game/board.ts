@@ -5,19 +5,22 @@
 // you hold ALL of its hexes. Movement is adjacency-based (see contestableFor).
 import type { PlayerId } from './humboldt';
 
-// Rows top→base of the mountain. Each entry is a biome code occupying one hex.
-// Counts: O2 S2 F3 D3 A2 I2 V1 P1 C1 G1  (≈ real habitat extent; marine at base,
-// forest on the wet slope, desert in the rain-shadow, ice+vent up top).
+// Rows top→base of the mountain — a regular 1…8 triangle of 36 hex spots.
+// Counts (≈ real habitat extent): F6 D6 I4 A4 S4 O4 V2 C2 P2 G2. Forest on the
+// wet slope, desert in the rain-shadow, ice+vent up top, marine at the base.
 const LAYOUT: string[][] = [
-  ['V'],                     // summit crater (volcano — this is Chimborazo, after all)
-  ['I', 'I'],                // snow line
-  ['F', 'F', 'D'],           // treeline / upper slopes; desert begins on the dry flank
-  ['F', 'C', 'D', 'A'],      // mid slope: forest, a cave in the massif, rain-shadow desert, savanna
-  ['S', 'A', 'P', 'D', 'G'], // lowland belt: coast, savanna, swamp, desert edge, the lab
-  ['O', 'S', 'O'],           // marine base
+  ['V'],                                   // summit crater (Chimborazo is a volcano)
+  ['V', 'I'],                              // upper cone + snow line
+  ['I', 'I', 'I'],                         // snow field
+  ['F', 'F', 'C', 'D'],                    // treeline: forest slope, cave in the massif, dry flank
+  ['F', 'F', 'C', 'D', 'D'],               // mid slope
+  ['F', 'F', 'A', 'A', 'D', 'D'],          // lower slope → savanna
+  ['S', 'A', 'A', 'P', 'P', 'D', 'G'],     // lowland belt: coast, savanna, swamp, desert edge, lab
+  ['O', 'O', 'S', 'S', 'S', 'O', 'O', 'G'],// marine base + anthropocene corner
 ];
 
-const R = 44;
+const R = 35;
+export const HEX_R = R;
 const DX = Math.sqrt(3) * R;   // horizontal step between hex centers
 const DY = 1.5 * R;            // vertical step between rows
 const CX = 500;
@@ -63,7 +66,7 @@ export function hexPoints(cx: number, cy: number, r = R): string {
 
 // Home bases: opposite marine corners. Both players start in the ocean and
 // climb the mountain, meeting in the tropical lowlands.
-export const HOME: Record<PlayerId, string[]> = { p1: ['O0'], p2: ['O1'] };
+export const HOME: Record<PlayerId, string[]> = { p1: ['O0'], p2: ['O3'] };
 
 // Muted, Naturgemälde-engraving palette — distinct but board-like, not neon.
 export const BIOME_COLORS: Record<string, string> = {
