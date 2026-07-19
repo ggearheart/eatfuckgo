@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Left column: the codex. Humboldt's climate zones, and under each the biomes
 // that live there with their supplied elements, terrain feature, and the
-// strategy cards suited to them.
+// strategy cards suited to them. Zones are collapsible to tame the density.
+import { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ZONES } from '../game/humboldt';
 import { BOARDS, EAT, FK } from '../engine/data';
 import { TERRAIN_ELEMENTS, ELEMENTS } from '../engine/elements';
@@ -11,37 +13,63 @@ const cardsFor = (code: string) =>
     .filter((c: any) => c.ter?.includes(code));
 
 export function ZonePanel() {
+  const [open, setOpen] = useState<Record<string, boolean>>({ [ZONES[0].id]: true });
+  const toggle = (id: string) => setOpen((o) => ({ ...o, [id]: !o[id] }));
+
   return (
     <div className="rounded-2xl border-2 border-ink bg-white/70 p-2.5 text-left overflow-y-auto" style={{ maxHeight: '74vh' }}>
-      <div className="font-black text-sm px-0.5 mb-2">🗺️ Zones &amp; niches</div>
-      {ZONES.map((z) => (
-        <div key={z.id} className="mb-3">
-          <div className="text-[11px] font-black uppercase tracking-wide text-neutral-600 border-b-2 border-neutral-300 pb-0.5 mb-1.5">{z.name}</div>
-          {z.biomes.map((code) => {
-            const b = BOARDS[code];
-            const els = TERRAIN_ELEMENTS[code] || [];
-            const cards = cardsFor(code);
-            return (
-              <div key={code} className="mb-2 pl-0.5">
-                <div className="text-xs font-bold flex items-center gap-1">
-                  <span>{b.icon}</span><span>{b.name}</span>
-                  <span className="text-[11px] ml-auto">{els.map((e) => ELEMENTS[e].icon).join('')}</span>
-                </div>
-                <div className="text-[10px] text-neutral-500 leading-snug mt-0.5">{b.desc}</div>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {cards.map((c: any) => (
-                    <span key={c.id + c.side} title={`${c.n} — ${c.side === 'eat' ? 'EAT' : 'F*CK'}`}
-                      className="text-[9px] px-1 py-0.5 rounded border font-semibold leading-none"
-                      style={{ borderColor: c.side === 'eat' ? '#c4561e' : '#7b4fa0', color: c.side === 'eat' ? '#c4561e' : '#7b4fa0' }}>
-                      {c.art} {c.n}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ))}
+      <div className="flex items-center gap-2 px-0.5 mb-2">
+        <div className="font-black text-sm">🗺️ Zones &amp; niches</div>
+        <button onClick={() => setOpen(Object.fromEntries(ZONES.map((z) => [z.id, true])))} className="text-[9px] text-neutral-500 underline">expand</button>
+        <button onClick={() => setOpen({})} className="text-[9px] text-neutral-500 underline">collapse</button>
+      </div>
+
+      {ZONES.map((z) => {
+        const isOpen = !!open[z.id];
+        return (
+          <div key={z.id} className="mb-1.5">
+            <button onClick={() => toggle(z.id)}
+              className="w-full flex items-center gap-1.5 text-left border-b-2 border-neutral-300 pb-1 hover:bg-black/[0.03] rounded-t px-0.5">
+              <span className="text-[10px] text-neutral-500 w-2">{isOpen ? '▾' : '▸'}</span>
+              <span className="text-[11px] font-black uppercase tracking-wide text-neutral-600 flex-1">{z.name}</span>
+              <span className="text-xs">{z.biomes.map((c) => BOARDS[c].icon).join('')}</span>
+            </button>
+
+            <AnimatePresence initial={false}>
+              {isOpen && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }} className="overflow-hidden">
+                  <div className="pt-1.5">
+                    {z.biomes.map((code) => {
+                      const b = BOARDS[code];
+                      const els = TERRAIN_ELEMENTS[code] || [];
+                      const cards = cardsFor(code);
+                      return (
+                        <div key={code} className="mb-2 pl-0.5">
+                          <div className="text-xs font-bold flex items-center gap-1">
+                            <span>{b.icon}</span><span>{b.name}</span>
+                            <span className="text-[11px] ml-auto">{els.map((e) => ELEMENTS[e].icon).join('')}</span>
+                          </div>
+                          <div className="text-[10px] text-neutral-500 leading-snug mt-0.5">{b.desc}</div>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {cards.map((c: any) => (
+                              <span key={c.id + c.side} title={`${c.n} — ${c.side === 'eat' ? 'EAT' : 'F*CK'}`}
+                                className="text-[9px] px-1 py-0.5 rounded border font-semibold leading-none"
+                                style={{ borderColor: c.side === 'eat' ? '#c4561e' : '#7b4fa0', color: c.side === 'eat' ? '#c4561e' : '#7b4fa0' }}>
+                                {c.art} {c.n}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      })}
     </div>
   );
 }
