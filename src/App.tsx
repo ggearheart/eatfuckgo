@@ -6,7 +6,7 @@ import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
 import { freshMatch, otherPlayer, heldBy, biomesControlledBy, matchWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, FACTION, PLAYERS, ALL_BIOMES, MatchState, Faction, PlayerId } from './game/humboldt';
-import { curBiome, hexesOfBiome, tickClock, STAGE_LABELS } from './game/board';
+import { curBiome, hexesOfBiome, tickWarming, degLabel } from './game/board';
 import { speciesInBiome, SPECIES_BY_ID } from './game/species';
 import { ContestSetup, ContestResult } from './components/ContestSetup';
 
@@ -33,6 +33,7 @@ export default function App() {
   const [p1Fac, setP1Fac] = useState<Faction>('eat');
   const [p2Fac, setP2Fac] = useState<Faction>('fk');
   const [log, setLog] = useState<string[]>([]);
+  const [reach, setReach] = useState<number | null>(null); // this turn's 1d6 movement roll
 
   const deckOf = (f: Faction) => (f === 'eat' ? EAT : FK);
 
@@ -47,15 +48,15 @@ export default function App() {
   }
 
   // ── Humboldt match ──
-  function startMatch() { setPlayerNames(p1Name, p2Name); setPlayerFactions(p1Fac, p2Fac); setMatch(freshMatch()); setResult(null); setWarmingNote(null); setLog([`🌱 ${PLAYERS.p1.name} (${FACTION[p1Fac].name}) vs ${PLAYERS.p2.name} (${FACTION[p2Fac].name}) — the mountain awaits.`]); setPhase('map'); }
+  function startMatch() { setPlayerNames(p1Name, p2Name); setPlayerFactions(p1Fac, p2Fac); setMatch(freshMatch()); setResult(null); setWarmingNote(null); setReach(null); setLog([`🌱 ${PLAYERS.p1.name} (${FACTION[p1Fac].name}) vs ${PLAYERS.p2.name} (${FACTION[p2Fac].name}) — the mountain awaits.`]); setPhase('map'); }
   function pickBiome(id: string) { setWarmingNote(null); setPending(id); }
-  // finish a turn: advance the warming clock, apply migration displacement, grow/prune
-  // collections, check victory, log
-  function finishTurn(owners: Record<string, any>, entries: string[], gain?: { player: PlayerId; species: string }) {
-    const tick = tickClock(match);
+  function rollMove() { setReach(1 + Math.floor(Math.random() * 6)); }
+  // finish a turn: advance warming (per claim), apply migration, grow/prune collections, check victory, log
+  function finishTurn(owners: Record<string, any>, entries: string[], claimed: boolean, gain?: { player: PlayerId; species: string }) {
+    const tick = tickWarming(match, claimed);
     const displaced = tick.changed.filter((c) => owners[c.id]).length;
     tick.changed.forEach((c) => { if (owners[c.id]) owners[c.id] = null; }); // migration teeth
-    if (tick.changed.length) entries.push(`🔥 ${STAGE_LABELS[tick.warming]}: ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''}` : ''}.`);
+    if (tick.changed.length) entries.push(`🔥 ${degLabel(tick.warming)}: ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''}` : ''}.`);
     // collection: winner absorbs the defeated dominant species
     const collection = { p1: [...match.collection.p1], p2: [...match.collection.p2] };
     if (gain && !collection[gain.player].includes(gain.species)) {
@@ -69,10 +70,11 @@ export default function App() {
       (['p1', 'p2'] as PlayerId[]).forEach((p) => { collection[p] = collection[p].filter((id) => !dead.has(id)); });
       entries.push(`🦴 ${extinct.map((c) => BOARDS[c].name).join(', ')} vanished — ${dead.size} species went extinct.`);
     }
-    const next = { ...match, owners, states: tick.states, warming: tick.warming, turns: tick.turns, turn: otherPlayer(match.turn), collection };
+    const next = { ...match, owners, states: tick.states, warming: tick.warming, turns: match.turns + 1, claims: tick.claims, turn: otherPlayer(match.turn), collection };
     setMatch(next);
+    setReach(null); // next player rolls to move
     setWarmingNote(tick.changed.length
-      ? `🔥 The planet warmed to ${STAGE_LABELS[tick.warming]} — ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''} (now neutral)` : ''}.`
+      ? `🔥 The planet warmed to ${degLabel(tick.warming)} — ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''} (now neutral)` : ''}.`
       : null);
     const won = matchWinner(next);
     if (won) {
@@ -97,7 +99,7 @@ export default function App() {
   function concedeContest() {
     const hex = pending!; setPending(null);
     const owners = { ...match.owners }; owners[hex] = match.turn;
-    finishTurn(owners, [`🏳️ ${PLAYERS[otherPlayer(match.turn)].name} conceded ${BOARDS[curBiome(match.states, hex)].name} to ${PLAYERS[match.turn].name}.`]);
+    finishTurn(owners, [`🏳️ ${PLAYERS[otherPlayer(match.turn)].name} conceded ${BOARDS[curBiome(match.states, hex)].name} to ${PLAYERS[match.turn].name}.`], true);
     setPhase('map');
   }
   function claimAndReturn() {
@@ -112,7 +114,7 @@ export default function App() {
       else if (state.winner === 'def') { owners[activeHex] = def; entries.push(`🛡️ ${defName} held ${biomeNm}.`); if (state.species.atk) gain = { player: def, species: state.species.atk }; }
       else entries.push(`🤝 Stalemate at ${biomeNm}.`);
     }
-    finishTurn(owners, entries, gain);
+    finishTurn(owners, entries, state?.winner === 'atk', gain);
     setActiveHex(null); setPhase('map');
   }
   function endMatch() {
@@ -121,7 +123,7 @@ export default function App() {
     const lead = p1 === p2
       ? `Even at ${p1} biome${p1 === 1 ? '' : 's'} each — ${h1 > h2 ? PLAYERS.p1.name : h2 > h1 ? PLAYERS.p2.name : 'nobody'} leads on hexes (${h1}–${h2}).`
       : `${p1 > p2 ? PLAYERS.p1.name : PLAYERS.p2.name} leads, controlling ${Math.max(p1, p2)} full biome${Math.max(p1, p2) === 1 ? '' : 's'} to ${Math.min(p1, p2)}.`;
-    setResult(`🌡️ The planet reached ${STAGE_LABELS[match.warming]}. ${lead}`);
+    setResult(`🌡️ The planet reached ${degLabel(match.warming)}. ${lead}`);
   }
 
   if (phase === 'battle' && state) {
@@ -140,7 +142,7 @@ export default function App() {
   if (phase === 'map') {
     return (
       <>
-        <MapScreen match={match} onPick={pickBiome} onEnd={endMatch} onHome={() => setPhase('home')} note={warmingNote} log={log} />
+        <MapScreen match={match} onPick={pickBiome} onEnd={endMatch} onHome={() => setPhase('home')} note={warmingNote} log={log} reach={reach} onRoll={rollMove} />
         <AnimatePresence>
           {pending && (
             <ContestSetup match={match} hex={pending}

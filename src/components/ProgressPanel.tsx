@@ -3,10 +3,44 @@
 // running player log, and the end-match button.
 import { PLAYERS, heldBy, biomesControlledBy, biomeWinThreshold, livingBiomes, ALL_BIOMES, MatchState } from '../game/humboldt';
 import { BOARDS } from '../engine/data';
-import { biomeOwner, hexesOfBiome, STAGE_LABELS, MAX_WARMING } from '../game/board';
+import { biomeOwner, hexesOfBiome, degLabel, MAX_C } from '../game/board';
+
+// Humboldt & Bonpland shed clothing as their isotherm climbs.
+function look(deg: number) {
+  if (deg >= 4) return { face: '🥵', wear: '🩳', caption: 'stripped to shorts' };
+  if (deg >= 3) return { face: '😅', wear: '👕', caption: 'shirtsleeves' };
+  if (deg >= 2) return { face: '🙂', wear: '👔', caption: 'coats off' };
+  if (deg >= 1) return { face: '😐', wear: '🧥', caption: 'coats on' };
+  return { face: '🥶', wear: '🧣', caption: 'bundled in furs' };
+}
+function ThermalScale({ warming }: { warming: number }) {
+  const pct = (warming / MAX_C) * 100;
+  const l = look(warming);
+  const Explorer = ({ name }: { name: string }) => (
+    <div className="leading-none flex flex-col items-center">
+      <div className="text-2xl">{l.face}</div><div className="text-base -mt-0.5">{l.wear}</div>
+      <div className="text-[8px] text-neutral-500 mt-0.5">{name}</div>
+    </div>
+  );
+  return (
+    <div className="flex gap-2 items-stretch">
+      {/* vertical isotherm bar — 0.0 (bottom) to +4 °C (top) */}
+      <div className="relative w-5 rounded-full border-2 border-ink bg-white overflow-hidden" style={{ height: 118 }}>
+        <div className="absolute bottom-0 left-0 right-0 transition-all duration-500" style={{ height: `${pct}%`, background: 'linear-gradient(0deg,#3b6fa0,#8fbf6f,#f2c14e,#e8743b,#c0392b)' }} />
+      </div>
+      <div className="flex flex-col justify-between text-[9px] font-bold text-neutral-400 py-0.5" style={{ height: 118 }}>
+        <span>+4 °C</span><span>+2 °C</span><span>0.0</span>
+      </div>
+      <div className="flex-1 flex flex-col justify-center items-center text-center">
+        <div className="text-[11px] font-black">🌡️ {degLabel(warming)}</div>
+        <div className="flex gap-3 mt-1"><Explorer name="Humboldt" /><Explorer name="Bonpland" /></div>
+        <div className="text-[9px] italic text-neutral-500 mt-1">{l.caption}</div>
+      </div>
+    </div>
+  );
+}
 
 export function ProgressPanel({ match, log, onEnd }: { match: MatchState; log: string[]; onEnd: () => void }) {
-  const warmPct = (match.warming / MAX_WARMING) * 100;
   const t = PLAYERS[match.turn];
   const need = biomeWinThreshold(match), living = livingBiomes(match).length;
   return (
@@ -18,13 +52,8 @@ export function ProgressPanel({ match, log, onEnd }: { match: MatchState; log: s
         Turn <b>{match.turns}</b> · <span style={{ color: t.color }}>{t.dot} {t.name}</span> to move
       </div>
 
-      {/* warming */}
-      <div>
-        <div className="text-[11px] font-bold flex justify-between mb-0.5"><span>🌡️ {STAGE_LABELS[match.warming]}</span><span className="text-neutral-400">Hothouse</span></div>
-        <div className="h-2.5 rounded-full border-2 border-ink overflow-hidden bg-white">
-          <div className="h-full transition-all duration-500" style={{ width: `${warmPct}%`, background: 'linear-gradient(90deg,#f2c14e,#e8743b,#c0392b)' }} />
-        </div>
-      </div>
+      {/* warming — vertical isotherm + explorers */}
+      <ThermalScale warming={match.warming} />
 
       {/* victory goal */}
       <div className="rounded-lg bg-amber-50 border border-amber-300 px-2 py-1 text-[11px] font-bold text-amber-800 text-center">

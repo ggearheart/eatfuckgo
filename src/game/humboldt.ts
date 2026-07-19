@@ -40,8 +40,9 @@ export const zoneOf = (code: string) => ZONES.find((z) => z.biomes.includes(code
 export interface MatchState {
   owners: Record<string, PlayerId | null>;
   states: Record<string, string>; // hex id -> current biome code (mutated by the warming clock)
-  warming: number;                // 0..MAX_WARMING
+  warming: number;                // degrees °C, 0.0 .. MAX_C
   turns: number;                  // turns (contests) resolved so far
+  claims: number;                 // hexes claimed so far (drives warming)
   turn: PlayerId;
   collection: Record<PlayerId, string[]>; // SPECIES ids each player has collected
 }
@@ -58,7 +59,7 @@ export function freshMatch(): MatchState {
   HEXES.forEach((h) => { owners[h.id] = null; states[h.id] = h.biome; });
   (Object.keys(HOME) as PlayerId[]).forEach((p) => HOME[p].forEach((id) => (owners[id] = p)));
   return {
-    owners, states, warming: 0, turns: 0, turn: 'p1',
+    owners, states, warming: 0, turns: 0, claims: 0, turn: 'p1',
     collection: { p1: starterCollection(PLAYERS.p1.fac), p2: starterCollection(PLAYERS.p2.fac) },
   };
 }

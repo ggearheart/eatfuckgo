@@ -92,14 +92,22 @@ export const FOOTHOLD_CAP = 3;
 export const foothold = (owners: Record<string, PlayerId | null>, hexId: string, player: PlayerId) =>
   Math.min(FOOTHOLD_CAP, neighbors(hexId).filter((n) => owners[n] === player).length);
 
-// A player can contest any hex they don't already hold that borders a hex they do.
-export function contestableFor(owners: Record<string, PlayerId | null>, player: PlayerId): Set<string> {
-  const held = new Set(HEXES.filter((h) => owners[h.id] === player).map((h) => h.id));
+// Movement: each turn a player rolls 1d6, then may contest any hex within that
+// many steps of their territory (BFS through the hex graph). Roll 1 = adjacent
+// only; a big roll lets a lineage disperse across the map.
+export function reachableFor(owners: Record<string, PlayerId | null>, player: PlayerId, reach: number): Set<string> {
   const out = new Set<string>();
-  HEXES.forEach((h) => {
-    if (owners[h.id] === player) return;
-    if (neighbors(h.id).some((n) => held.has(n))) out.add(h.id);
-  });
+  if (!reach || reach < 1) return out;
+  const dist: Record<string, number> = {};
+  const q: string[] = [];
+  HEXES.forEach((h) => { if (owners[h.id] === player) { dist[h.id] = 0; q.push(h.id); } });
+  let head = 0;
+  while (head < q.length) {
+    const id = q[head++];
+    if (dist[id] >= reach) continue;
+    neighbors(id).forEach((n) => { if (dist[n] === undefined) { dist[n] = dist[id] + 1; q.push(n); } });
+  }
+  HEXES.forEach((h) => { const d = dist[h.id]; if (d !== undefined && d > 0 && d <= reach && owners[h.id] !== player) out.add(h.id); });
   return out;
 }
 
@@ -113,38 +121,40 @@ export function biomeOwner(owners: Record<string, PlayerId | null>, code: string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The warming clock. Temperature rises one stage every TURNS_PER_STAGE turns;
-// at each step the most heat-vulnerable hexes transform to a hotter state.
-export const STAGE_LABELS = ['Holocene', '+1.5 °C', '+2 °C', '+3 °C', '+4 °C', 'Hothouse'];
-export const MAX_WARMING = STAGE_LABELS.length - 1;
-const TURNS_PER_STAGE = 3;
-const RATE = 3; // hexes that can flip per warming step (so change creeps, not snaps)
+// Warming as an isotherm scale (Humboldt's specialty): 0.0 → +4.0 °C, gaining
+// +0.5 °C for every CLAIMS_PER_STEP hexes contested & claimed. As it rises, the
+// most heat-vulnerable hexes transform to a hotter state.
+export const MAX_C = 4;                 // warming caps at +4 °C
+export const DEG_STEP = 0.5;            // gained per step
+const CLAIMS_PER_STEP = 3;              // claims needed per +0.5 °C
+const RATE = 3;                         // hexes that can flip per +0.5 °C step
+export const degreesFromClaims = (claims: number) => Math.min(MAX_C, Math.floor(claims / CLAIMS_PER_STEP) * DEG_STEP);
+export const degLabel = (deg: number) => (deg <= 0 ? 'Holocene · 0.0 °C' : `+${deg.toFixed(1)} °C`);
 
 // what each biome becomes as it heats (absent = a thermal refuge, never changes)
 export const TRANSITIONS: Record<string, string> = { I: 'P', S: 'O', A: 'D', F: 'A' };
-// the warming stage at which a biome first becomes vulnerable
-const HEAT_STAGE: Record<string, number> = { I: 1, S: 2, A: 2, F: 3 };
+// the temperature (°C) at which each biome begins transforming
+const HEAT_DEG: Record<string, number> = { I: 1, S: 2, A: 2, F: 3 };
 
-const eligible = (states: Record<string, string>, warming: number) =>
+const eligible = (states: Record<string, string>, deg: number) =>
   HEXES.filter((h) => {
     const b = states[h.id];
-    return TRANSITIONS[b] && HEAT_STAGE[b] <= warming;
+    return TRANSITIONS[b] && HEAT_DEG[b] <= deg;
   });
 
 export interface HexChange { id: string; from: string; to: string; }
 
-// Advance one turn; on a stage boundary, warm the planet and flip up to RATE hexes.
-export function tickClock(m: MatchState): { turns: number; warming: number; states: Record<string, string>; changed: HexChange[] } {
-  const turns = m.turns + 1;
-  let warming = m.warming;
+// Advance one turn; a claimed hex nudges the isotherm, which may flip up to RATE hexes.
+export function tickWarming(m: MatchState, claimed: boolean): { claims: number; warming: number; states: Record<string, string>; changed: HexChange[] } {
+  const claims = m.claims + (claimed ? 1 : 0);
+  const warming = degreesFromClaims(claims);
   let states = m.states;
   const changed: HexChange[] = [];
-  if (turns % TURNS_PER_STAGE === 0 && warming < MAX_WARMING) {
-    warming += 1;
+  if (warming > m.warming) {
     const pick = eligible(states, warming)
       .sort((a, b) =>
-        (warming - HEAT_STAGE[states[b.id]]) - (warming - HEAT_STAGE[states[a.id]]) || // most overdue first
-        b.row - a.row ||                                                                // then lowest / warmest
+        (warming - HEAT_DEG[states[b.id]]) - (warming - HEAT_DEG[states[a.id]]) || // most overdue first
+        b.row - a.row ||                                                            // then lowest / warmest
         a.id.localeCompare(b.id))
       .slice(0, RATE);
     states = { ...states };
@@ -154,11 +164,11 @@ export function tickClock(m: MatchState): { turns: number; warming: number; stat
       states[h.id] = to;
     });
   }
-  return { turns, warming, states, changed };
+  return { claims, warming, states, changed };
 }
 
-// Hexes that will transform on or before the next warming step — flagged on the map.
+// Hexes that will transform on or before the next +0.5 °C step — flagged on the map.
 export function vulnerableHexes(m: MatchState): Set<string> {
-  const w = Math.min(m.warming + 1, MAX_WARMING);
-  return new Set(eligible(m.states, w).map((h) => h.id));
+  const next = Math.min(MAX_C, m.warming + DEG_STEP);
+  return new Set(eligible(m.states, next).map((h) => h.id));
 }
