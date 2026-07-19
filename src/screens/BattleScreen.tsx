@@ -18,8 +18,9 @@ import { CardModal } from '../components/CardModal';
 
 const CATA_ROUND = 3;
 
-export function BattleScreen({ state: s, dispatch, onNewRandom, onExit }: {
+export function BattleScreen({ state: s, dispatch, onNewRandom, onExit, mapMode, biomeName, attackerName, onClaim }: {
   state: State; dispatch: Dispatch<Action>; onNewRandom: () => void; onExit: () => void;
+  mapMode?: boolean; biomeName?: string; attackerName?: string; onClaim?: () => void;
 }) {
   const [inspect, setInspect] = useState<{ side: Side; idx: number } | null>(null);
   const theme = s.battleType;
@@ -48,9 +49,16 @@ export function BattleScreen({ state: s, dispatch, onNewRandom, onExit }: {
 
         <div className="flex items-center gap-3 mb-3">
           <div className="font-display text-2xl"><span className="text-eat">EAT</span> <span className="text-fk">FUCK</span> GO</div>
+          {mapMode && <div className="text-[11px] font-extrabold px-2 py-0.5 rounded-lg" style={{ background: '#fffdf3', border: '2px solid #d4a017' }}>⚔️ {attackerName} contests {biomeName}</div>}
           <div className="ml-auto flex gap-2">
-            <button onClick={onNewRandom} className="text-xs font-bold px-3 py-1 rounded-lg border-2 border-ink bg-white">↺ New</button>
-            <button onClick={onExit} className="text-xs font-bold px-3 py-1 rounded-lg border-2 border-ink bg-white">⌂ Home</button>
+            {mapMode ? (
+              <button onClick={onExit} className="text-xs font-bold px-3 py-1 rounded-lg border-2 border-ink bg-white">↩ Abandon</button>
+            ) : (
+              <>
+                <button onClick={onNewRandom} className="text-xs font-bold px-3 py-1 rounded-lg border-2 border-ink bg-white">↺ New</button>
+                <button onClick={onExit} className="text-xs font-bold px-3 py-1 rounded-lg border-2 border-ink bg-white">⌂ Home</button>
+              </>
+            )}
           </div>
         </div>
 
@@ -161,7 +169,7 @@ export function BattleScreen({ state: s, dispatch, onNewRandom, onExit }: {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>{s.winner && <ResultOverlay s={s} onNewRandom={onNewRandom} onExit={onExit} />}</AnimatePresence>
+      <AnimatePresence>{s.winner && <ResultOverlay s={s} onNewRandom={onNewRandom} onExit={onExit} onClaim={onClaim} biomeName={biomeName} attackerName={attackerName} />}</AnimatePresence>
     </div>
   );
 }
@@ -360,18 +368,30 @@ function MusterBtn({ s, dispatch }: { s: State; dispatch: Dispatch<Action> }) {
   );
 }
 
-function ResultOverlay({ s, onNewRandom, onExit }: { s: State; onNewRandom: () => void; onExit: () => void }) {
+function ResultOverlay({ s, onNewRandom, onExit, onClaim, biomeName, attackerName }: {
+  s: State; onNewRandom: () => void; onExit: () => void; onClaim?: () => void; biomeName?: string; attackerName?: string;
+}) {
   const win = s.winner;
-  const banner = win === 'atk' ? '⚔️ Attacker Wins the Hex!' : win === 'def' ? '🛡️ Defender Holds the Hex!' : '💀 Mutual Collapse';
+  const banner = win === 'atk' ? '⚔️ Attacker Wins the Clash!' : win === 'def' ? '🛡️ Defender Holds!' : '💀 Mutual Collapse';
+  const winnerName = win === 'draw' ? null : win === 'atk' ? attackerName : (attackerName ? `Player ${attackerName.endsWith('1') ? '2' : '1'}` : 'Defender');
   return (
     <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <motion.div className="bg-white rounded-2xl border-2 border-ink p-6 text-center max-w-md w-full" initial={{ scale: 0.8, y: 30 }} animate={{ scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 22 }}>
         <div className="font-display text-2xl mb-1">{banner}</div>
         <div className="text-sm text-neutral-500 mb-4">Final life — Attacker {Math.max(0, s.life.atk)} · Defender {Math.max(0, s.life.def)}.</div>
-        <div className="flex gap-2 justify-center">
-          <button onClick={onNewRandom} className="px-4 py-2 rounded-lg border-2 border-ink bg-eat text-white font-extrabold">⚡ New Battle</button>
-          <button onClick={onExit} className="px-4 py-2 rounded-lg border-2 border-ink bg-white font-extrabold">⌂ Home</button>
-        </div>
+        {onClaim ? (
+          <>
+            <div className="text-[13px] font-bold mb-4">
+              {win === 'draw' ? `No one claims ${biomeName} — the niche stays contested.` : `👑 ${winnerName} claims ${biomeName}!`}
+            </div>
+            <button onClick={onClaim} className="px-5 py-2.5 rounded-lg border-2 border-ink text-white font-extrabold" style={{ background: '#d4a017' }}>🏳️ Return to the map</button>
+          </>
+        ) : (
+          <div className="flex gap-2 justify-center">
+            <button onClick={onNewRandom} className="px-4 py-2 rounded-lg border-2 border-ink bg-eat text-white font-extrabold">⚡ New Battle</button>
+            <button onClick={onExit} className="px-4 py-2 rounded-lg border-2 border-ink bg-white font-extrabold">⌂ Home</button>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );
