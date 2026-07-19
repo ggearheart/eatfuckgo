@@ -14,33 +14,22 @@ export function MapBoard({ match, turn, onPick }: { match: MatchState; turn: Pla
   return (
     <svg viewBox="0 0 1000 620" className="w-full h-auto rounded-xl border-4 border-ink"
       style={{ boxShadow: '6px 6px 0 rgba(0,0,0,0.85)', background: '#f2e7cf' }}>
-      <defs>
-        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#dcecf3" /><stop offset="1" stopColor="#eee3c6" />
-        </linearGradient>
-        <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#8fb9c4" /><stop offset="1" stopColor="#5f97a6" />
-        </linearGradient>
-      </defs>
-
-      {/* parchment sky + sea backdrop */}
-      <rect width="1000" height="620" fill="url(#sky)" />
-      <rect y="470" width="1000" height="150" fill="url(#sea)" opacity="0.55" />
-      {/* the mountain silhouette behind the hexes */}
-      <polygon points="60,540 500,70 940,540" fill="#c9b78e" opacity="0.5" stroke="#8a734a" strokeWidth="2" />
-      <polygon points="430,150 500,70 570,150 540,175 460,175" fill="#f3f6fa" opacity="0.7" />
-      {/* faint sun + smoke plume */}
-      <circle cx="150" cy="120" r="30" fill="#f0d98a" opacity="0.6" />
-      <g fill="#9a9080" opacity="0.4"><circle cx="512" cy="70" r="9" /><circle cx="522" cy="52" r="12" /><circle cx="534" cy="34" r="15" /></g>
+      {/* the original 1807 Naturgemälde plate as the board background */}
+      <image href={`${import.meta.env.BASE_URL}img/naturgemalde.jpg`} x="0" y="0" width="1000" height="620"
+        preserveAspectRatio="xMidYMid slice" opacity="0.9" />
+      {/* parchment scrim so the hex spots stay legible over the engraving */}
+      <rect width="1000" height="620" fill="#f4ead0" opacity="0.32" />
 
       {/* Humboldt-style zone labels down the left margin */}
-      <g fontFamily="Georgia,'Times New Roman',serif" fill="#5a4a30" opacity="0.9">
-        <text x="16" y="120" fontSize="13" fontStyle="italic" fontWeight="700">Nival · snow &amp; fire</text>
-        <text x="16" y="252" fontSize="13" fontStyle="italic" fontWeight="700">Montane · forest &amp; rock</text>
-        <text x="16" y="384" fontSize="13" fontStyle="italic" fontWeight="700">Lowland · plains &amp; swamp</text>
-        <text x="16" y="512" fontSize="13" fontStyle="italic" fontWeight="700">Coastal · sea &amp; ocean</text>
+      <g fontFamily="Georgia,'Times New Roman',serif" opacity="0.95"
+        style={{ paintOrder: 'stroke' } as any} stroke="#f6eed6" strokeWidth="3">
+        <text x="16" y="120" fontSize="13" fontStyle="italic" fontWeight="800" fill="#4a3a22">Nival · snow &amp; fire</text>
+        <text x="16" y="252" fontSize="13" fontStyle="italic" fontWeight="800" fill="#4a3a22">Montane · forest &amp; rock</text>
+        <text x="16" y="384" fontSize="13" fontStyle="italic" fontWeight="800" fill="#4a3a22">Lowland · plains &amp; swamp</text>
+        <text x="16" y="512" fontSize="13" fontStyle="italic" fontWeight="800" fill="#4a3a22">Coastal · sea &amp; ocean</text>
       </g>
-      <text x="984" y="600" textAnchor="end" fontSize="11" fontFamily="Georgia,serif" fontStyle="italic" fill="#7a6947" opacity="0.7">Tableau physique — after A. v. Humboldt</text>
+      <text x="984" y="606" textAnchor="end" fontSize="10.5" fontFamily="Georgia,serif" fontStyle="italic" fill="#4a3a22"
+        style={{ paintOrder: 'stroke' } as any} stroke="#f6eed6" strokeWidth="2.5">Naturgemälde (1807), A. v. Humboldt — Zentralbibliothek Zürich · public domain</text>
 
       {/* hex spots */}
       {HEXES.map((h) => {
