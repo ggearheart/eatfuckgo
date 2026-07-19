@@ -85,6 +85,12 @@ export const BIOME_COLORS: Record<string, string> = {
   G: '#c39ad0', // lab
 };
 
+// Foothold: how much established ground a player holds bordering a hex. Drives
+// how deep a hand they field when contesting it (the territory economy).
+export const FOOTHOLD_CAP = 3;
+export const foothold = (owners: Record<string, PlayerId | null>, hexId: string, player: PlayerId) =>
+  Math.min(FOOTHOLD_CAP, neighbors(hexId).filter((n) => owners[n] === player).length);
+
 // A player can contest any hex they don't already hold that borders a hex they do.
 export function contestableFor(owners: Record<string, PlayerId | null>, player: PlayerId): Set<string> {
   const held = new Set(HEXES.filter((h) => owners[h.id] === player).map((h) => h.id));

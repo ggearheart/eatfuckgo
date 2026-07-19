@@ -6,7 +6,7 @@ import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
 import { freshMatch, otherPlayer, heldBy, biomesControlledBy, matchWinner, biomeWinThreshold, livingBiomes, setPlayerNames, PLAYERS, MatchState } from './game/humboldt';
-import { curBiome, hexesOfBiome, tickClock, STAGE_LABELS } from './game/board';
+import { curBiome, hexesOfBiome, tickClock, foothold, STAGE_LABELS } from './game/board';
 import { BiomeDossier } from './components/BiomeDossier';
 
 const rand = (n: number) => Math.floor(Math.random() * n);
@@ -47,7 +47,11 @@ export default function App() {
   function chooseType(bt: 'eat' | 'fk') {
     const hex = pending!; setPending(null); setActiveHex(hex);
     const deck = bt === 'eat' ? EAT : FK;
-    dispatch({ t: 'new', battleType: bt, terrain: curBiome(match.states, hex), atkIds: randStack(deck, 2 + rand(4)), defIds: randStack(deck, 2 + rand(4)) });
+    // territory economy: your foothold (adjacent held hexes) deepens your hand
+    const atkN = Math.min(5, 2 + foothold(match.owners, hex, match.turn));
+    const defOwner = match.owners[hex];
+    const defN = defOwner ? Math.min(5, 2 + foothold(match.owners, hex, defOwner)) : 3; // wild incumbency
+    dispatch({ t: 'new', battleType: bt, terrain: curBiome(match.states, hex), atkIds: randStack(deck, atkN), defIds: randStack(deck, defN) });
     setPhase('battle');
   }
   function claimAndReturn() {
@@ -62,11 +66,14 @@ export default function App() {
       else entries.push(`🤝 Stalemate at ${biomeNm}.`);
     }
     const tick = tickClock(match); // every turn advances the warming clock
-    if (tick.changed.length) entries.push(`🔥 ${STAGE_LABELS[tick.warming]}: ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed.`);
+    // migration teeth: a transforming hex displaces whoever held it — it goes neutral
+    const displaced = tick.changed.filter((c) => owners[c.id]).length;
+    tick.changed.forEach((c) => { if (owners[c.id]) owners[c.id] = null; });
+    if (tick.changed.length) entries.push(`🔥 ${STAGE_LABELS[tick.warming]}: ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''}` : ''}.`);
     const next = { ...match, owners, states: tick.states, warming: tick.warming, turns: tick.turns, turn: otherPlayer(match.turn) };
     setMatch(next);
     setWarmingNote(tick.changed.length
-      ? `🔥 The planet warmed to ${STAGE_LABELS[tick.warming]} — ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed as habitats shifted.`
+      ? `🔥 The planet warmed to ${STAGE_LABELS[tick.warming]} — ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''} (now neutral)` : ''}.`
       : null);
     // victory: someone now controls a majority of the living biomes
     const won = matchWinner(next);
@@ -120,7 +127,19 @@ export default function App() {
                   );
                 })()}
                 <BiomeDossier code={curBiome(match.states, pending)} />
-                <div className="text-[11px] text-neutral-500 mt-3 mb-2 text-center">Choose how you'll fight for it — match your strategies to what the biome supplies.</div>
+                {(() => {
+                  const atkFh = foothold(match.owners, pending, match.turn);
+                  const defOwner = match.owners[pending];
+                  const atkN = Math.min(5, 2 + atkFh);
+                  const defN = defOwner ? Math.min(5, 2 + foothold(match.owners, pending, defOwner)) : 3;
+                  return (
+                    <div className="text-[11px] mt-3 mb-1 text-center rounded-lg bg-stone-100 border border-stone-300 px-2 py-1.5">
+                      🏰 Foothold <b>+{atkFh}</b> — you field <b>{atkN}</b> strateg{atkN === 1 ? 'y' : 'ies'} vs the {defOwner ? 'holder' : 'wild'}’s <b>{defN}</b>.
+                      {atkFh > 0 && <span className="text-neutral-500"> Adjacent ground you hold pays off.</span>}
+                    </div>
+                  );
+                })()}
+                <div className="text-[11px] text-neutral-500 mt-1 mb-2 text-center">Choose how you'll fight for it — match your strategies to what the biome supplies.</div>
                 <div className="flex gap-3 justify-center">
                   <button onClick={() => chooseType('eat')} className="px-5 py-3 rounded-xl border-2 border-ink bg-eat text-white font-extrabold shadow-comic">🦷 EAT IT</button>
                   <button onClick={() => chooseType('fk')} className="px-5 py-3 rounded-xl border-2 border-ink bg-fk text-white font-extrabold shadow-comic">🧬 F*CK IT</button>

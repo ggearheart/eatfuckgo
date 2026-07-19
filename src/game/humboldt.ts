@@ -65,3 +65,11 @@ export function matchWinner(m: MatchState): PlayerId | null {
   if (biomesControlledBy(m, 'p2') >= need) return 'p2';
   return null;
 }
+// a player one biome short of the majority (no winner yet) — for the "close" cue
+export function matchThreat(m: MatchState): PlayerId | null {
+  if (matchWinner(m)) return null;
+  const need = biomeWinThreshold(m);
+  if (biomesControlledBy(m, 'p1') === need - 1) return 'p1';
+  if (biomesControlledBy(m, 'p2') === need - 1) return 'p2';
+  return null;
+}
