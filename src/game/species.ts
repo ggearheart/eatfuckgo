@@ -19,7 +19,7 @@ export const stratCat = (id: string): 'eat' | 'fk' => (EAT.some((c: any) => c.id
 export const SPECIES: Species[] = [
   // ── V · Volcanic Vent (EAT-favored) ──
   { id: 'tubeworm', name: 'Giant Tube Worm', emoji: '🪱', strategy: 'chemosynthesis', biome: 'V' },
-  { id: 'sulfurbact', name: 'Sulfur Bacteria', emoji: '🦠', strategy: 'anoxygenic', biome: 'V' },
+  { id: 'sulfurbact', name: 'Sulfur Bacteria', emoji: '🟣', strategy: 'anoxygenic', biome: 'V' },
   { id: 'methanogen', name: 'Methanogen Archaeon', emoji: '🌫️', strategy: 'binary_fission', biome: 'V' },
   { id: 'thermophile', name: 'Thermophile Microbe', emoji: '🧫', strategy: 'hgt', biome: 'V' },
 
@@ -56,7 +56,7 @@ export const SPECIES: Species[] = [
   { id: 'alligator', name: 'American Alligator', emoji: '🐊', strategy: 'sit_wait', biome: 'P' },
   { id: 'watermold', name: 'Water Mold', emoji: '🍄', strategy: 'osmotrophy', biome: 'P' },
   { id: 'mosquito', name: 'Mosquito', emoji: '🦟', strategy: 'swarm_breed', biome: 'P' },
-  { id: 'cyano', name: 'Cyanobacteria', emoji: '🫧', strategy: 'binary_fission', biome: 'P' },
+  { id: 'cyano', name: 'Cyanobacteria', emoji: '🦠', strategy: 'binary_fission', biome: 'P' },
   { id: 'cattail', name: 'Cattail', emoji: '🌾', strategy: 'veg_prop', biome: 'P' },
 
   // ── S · Shallow Sea (F*CK-favored) ──
