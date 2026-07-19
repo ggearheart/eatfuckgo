@@ -35,7 +35,7 @@ export const SPECIES: Species[] = [
   { id: 'orbweaver', name: 'Orb-weaver Spider', emoji: '🕷️', strategy: 'trap_build', biome: 'F' },
   { id: 'leafcutter', name: 'Leafcutter Ant', emoji: '🐜', strategy: 'fungal_farm', biome: 'F' },
   { id: 'birdofpara', name: 'Bird of Paradise', emoji: '🦚', strategy: 'lek', biome: 'F' },
-  { id: 'cordyceps', name: 'Cordyceps Fungus', emoji: '🍄', strategy: 'repro_manip', biome: 'F' },
+  { id: 'cordyceps', name: 'Cordyceps Fungus', emoji: '🧠', strategy: 'repro_manip', biome: 'F' },
   { id: 'stranglerfig', name: 'Strangler Fig', emoji: '🌳', strategy: 'veg_prop', biome: 'F' },
 
   // ── D · Desert (EAT-favored) ──
@@ -56,12 +56,12 @@ export const SPECIES: Species[] = [
   { id: 'alligator', name: 'American Alligator', emoji: '🐊', strategy: 'sit_wait', biome: 'P' },
   { id: 'watermold', name: 'Water Mold', emoji: '🍄', strategy: 'osmotrophy', biome: 'P' },
   { id: 'mosquito', name: 'Mosquito', emoji: '🦟', strategy: 'swarm_breed', biome: 'P' },
-  { id: 'cyano', name: 'Cyanobacteria', emoji: '🦠', strategy: 'binary_fission', biome: 'P' },
+  { id: 'cyano', name: 'Cyanobacteria', emoji: '🫧', strategy: 'binary_fission', biome: 'P' },
   { id: 'cattail', name: 'Cattail', emoji: '🌾', strategy: 'veg_prop', biome: 'P' },
 
   // ── S · Shallow Sea (F*CK-favored) ──
   { id: 'giantclam', name: 'Giant Clam', emoji: '🦪', strategy: 'filter_feed', biome: 'S' },
-  { id: 'reefshark', name: 'Reef Shark', emoji: '🦈', strategy: 'electro', biome: 'S' },
+  { id: 'reefshark', name: 'Reef Shark', emoji: '🐡', strategy: 'electro', biome: 'S' },
   { id: 'staghorn', name: 'Staghorn Coral', emoji: '🪸', strategy: 'broadcast', biome: 'S' },
   { id: 'clownfish', name: 'Clownfish', emoji: '🐠', strategy: 'seq_herm', biome: 'S' },
   { id: 'seastar', name: 'Sea Star', emoji: '⭐', strategy: 'fragmentation', biome: 'S' },
@@ -75,26 +75,26 @@ export const SPECIES: Species[] = [
 
   // ── C · Deep Cave (F*CK-favored) ──
   { id: 'bat', name: 'Bat', emoji: '🦇', strategy: 'echolocation', biome: 'C' },
-  { id: 'cavemicrobe', name: 'Cave Sulfur Microbe', emoji: '🦠', strategy: 'chemosynthesis', biome: 'C' },
+  { id: 'cavemicrobe', name: 'Cave Sulfur Microbe', emoji: '🟡', strategy: 'chemosynthesis', biome: 'C' },
   { id: 'crayfish', name: 'Marbled Crayfish', emoji: '🦞', strategy: 'parthenogenesis', biome: 'C' },
-  { id: 'molerat', name: 'Naked Mole-Rat', emoji: '🐀', strategy: 'eusocial', biome: 'C' },
+  { id: 'molerat', name: 'Naked Mole-Rat', emoji: '🐭', strategy: 'eusocial', biome: 'C' },
 
   // ── G · GM Lab (F*CK-favored) — engineered life ──
-  { id: 'gmalgae', name: 'GM Biofuel Algae', emoji: '🦠', strategy: 'filter_feed', biome: 'G' },
+  { id: 'gmalgae', name: 'GM Biofuel Algae', emoji: '🟢', strategy: 'filter_feed', biome: 'G' },
   { id: 'phage', name: 'Engineered Phage', emoji: '🧬', strategy: 'parasitism', biome: 'G' },
-  { id: 'ecoli', name: 'Engineered E. coli', emoji: '🧫', strategy: 'hgt', biome: 'G' },
-  { id: 'genedrive', name: 'Gene-Drive Mosquito', emoji: '🦟', strategy: 'repro_manip', biome: 'G' },
+  { id: 'ecoli', name: 'Engineered E. coli', emoji: '🧪', strategy: 'hgt', biome: 'G' },
+  { id: 'genedrive', name: 'Gene-Drive Mosquito', emoji: '💉', strategy: 'repro_manip', biome: 'G' },
   { id: 'labmouse', name: 'Knockout Lab Mouse', emoji: '🐁', strategy: 'viviparity', biome: 'G' },
 
   // ── coverage fills: a species for every remaining strategy ──
-  { id: 'kelp', name: 'Giant Kelp', emoji: '🌿', strategy: 'oxygenic', biome: 'S' },            // EAT · Oxygenic Photosynthesis
+  { id: 'kelp', name: 'Giant Kelp', emoji: '🍃', strategy: 'oxygenic', biome: 'S' },            // EAT · Oxygenic Photosynthesis
   { id: 'fiddler', name: 'Fiddler Crab', emoji: '🦀', strategy: 'detritivory', biome: 'P' },     // EAT · Detritivory / Scavenging
-  { id: 'okapi', name: 'Okapi', emoji: '🦌', strategy: 'browse', biome: 'F' },                   // EAT · Browse / Selective Feeding
+  { id: 'okapi', name: 'Okapi', emoji: '🦓', strategy: 'browse', biome: 'F' },                   // EAT · Browse / Selective Feeding
   { id: 'wilddog', name: 'African Wild Dog', emoji: '🐕', strategy: 'persistence', biome: 'A' }, // EAT · Persistence Hunt
   { id: 'frigatebird', name: 'Frigatebird', emoji: '🕊️', strategy: 'klepto', biome: 'O' },       // EAT · Kleptoparasitism
-  { id: 'hydra', name: 'Freshwater Hydra', emoji: '🪸', strategy: 'budding', biome: 'P' },        // F*CK · Budding / Colonial
+  { id: 'hydra', name: 'Freshwater Hydra', emoji: '🪼', strategy: 'budding', biome: 'P' },        // F*CK · Budding / Colonial
   { id: 'cuttlefish', name: 'Cuttlefish', emoji: '🦑', strategy: 'display', biome: 'S' },         // F*CK · Honest Signal / Display
-  { id: 'rightwhale', name: 'Right Whale', emoji: '🐋', strategy: 'sperm_comp', biome: 'O' },     // F*CK · Sperm Competition
+  { id: 'rightwhale', name: 'Right Whale', emoji: '🐬', strategy: 'sperm_comp', biome: 'O' },     // F*CK · Sperm Competition
   { id: 'brownbear', name: 'Brown Bear', emoji: '🐻', strategy: 'infanticide', biome: 'I' },      // F*CK · Infanticide / Takeover
 ];
 
