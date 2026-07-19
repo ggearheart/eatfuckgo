@@ -5,7 +5,8 @@ import { useBattle } from './store';
 import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
-import { freshMatch, otherPlayer, heldBy, PLAYERS, MatchState, PlayerId } from './game/humboldt';
+import { freshMatch, otherPlayer, heldBy, biomesControlledBy, PLAYERS, MatchState } from './game/humboldt';
+import { hexBiome, hexesOfBiome } from './game/board';
 import { BiomeDossier } from './components/BiomeDossier';
 
 const rand = (n: number) => Math.floor(Math.random() * n);
@@ -22,8 +23,8 @@ export default function App() {
   const [state, dispatch] = useBattle();
   const [phase, setPhase] = useState<Phase>('home');
   const [match, setMatch] = useState<MatchState>(freshMatch);
-  const [pending, setPending] = useState<string | null>(null); // biome awaiting battle-type choice
-  const [activeBiome, setActiveBiome] = useState<string | null>(null);
+  const [pending, setPending] = useState<string | null>(null); // hex id awaiting battle-type choice
+  const [activeHex, setActiveHex] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
 
   // ── free-play skirmish (no map) ──
@@ -31,43 +32,49 @@ export default function App() {
     const battleType = bt ?? (Math.random() < 0.5 ? 'eat' : 'fk');
     const terrain = TERRAINS[rand(TERRAINS.length)];
     const deck = battleType === 'eat' ? EAT : FK;
-    setActiveBiome(null);
+    setActiveHex(null);
     dispatch({ t: 'new', battleType, terrain, atkIds: randStack(deck, 2 + rand(4)), defIds: randStack(deck, 2 + rand(4)) });
     setPhase('battle');
   }
 
   // ── Humboldt match ──
   function startMatch() { setMatch(freshMatch()); setResult(null); setPhase('map'); }
-  function pickBiome(code: string) { setPending(code); }
+  function pickBiome(id: string) { setPending(id); }
   function chooseType(bt: 'eat' | 'fk') {
-    const biome = pending!; setPending(null); setActiveBiome(biome);
+    const hex = pending!; setPending(null); setActiveHex(hex);
     const deck = bt === 'eat' ? EAT : FK;
-    dispatch({ t: 'new', battleType: bt, terrain: biome, atkIds: randStack(deck, 2 + rand(4)), defIds: randStack(deck, 2 + rand(4)) });
+    dispatch({ t: 'new', battleType: bt, terrain: hexBiome(hex), atkIds: randStack(deck, 2 + rand(4)), defIds: randStack(deck, 2 + rand(4)) });
     setPhase('battle');
   }
   function claimAndReturn() {
-    if (state?.winner && activeBiome) {
+    if (state?.winner && activeHex) {
       const atk = match.turn, def = otherPlayer(match.turn);
       const owners = { ...match.owners };
-      if (state.winner === 'atk') owners[activeBiome] = atk;
-      else if (state.winner === 'def') owners[activeBiome] = def;
+      if (state.winner === 'atk') owners[activeHex] = atk;
+      else if (state.winner === 'def') owners[activeHex] = def;
       setMatch({ owners, turn: otherPlayer(match.turn) });
+    } else {
+      setMatch({ ...match, turn: otherPlayer(match.turn) }); // stalemate/concede still passes the turn
     }
-    setActiveBiome(null); setPhase('map');
+    setActiveHex(null); setPhase('map');
   }
   function endMatch() {
-    const p1 = heldBy(match, 'p1'), p2 = heldBy(match, 'p2');
-    setResult(p1 === p2 ? `Dead heat — ${p1} biomes each.` : `${p1 > p2 ? PLAYERS.p1.name : PLAYERS.p2.name} leads, holding ${Math.max(p1, p2)} biomes to ${Math.min(p1, p2)}.`);
+    const p1 = biomesControlledBy(match, 'p1'), p2 = biomesControlledBy(match, 'p2');
+    const h1 = heldBy(match, 'p1'), h2 = heldBy(match, 'p2');
+    const lead = p1 === p2
+      ? `Even at ${p1} biome${p1 === 1 ? '' : 's'} each — ${h1 > h2 ? PLAYERS.p1.name : h2 > h1 ? PLAYERS.p2.name : 'nobody'} leads on hexes (${h1}–${h2}).`
+      : `${p1 > p2 ? PLAYERS.p1.name : PLAYERS.p2.name} leads, controlling ${Math.max(p1, p2)} full biome${Math.max(p1, p2) === 1 ? '' : 's'} to ${Math.min(p1, p2)}.`;
+    setResult(lead);
   }
 
   if (phase === 'battle' && state) {
     return (
       <BattleScreen state={state} dispatch={dispatch}
-        mapMode={activeBiome != null}
-        biomeName={activeBiome ? BOARDS[activeBiome].name : undefined}
-        attackerName={activeBiome ? PLAYERS[match.turn].name : undefined}
-        onClaim={activeBiome ? claimAndReturn : undefined}
-        onExit={() => (activeBiome ? setPhase('map') : location.reload())}
+        mapMode={activeHex != null}
+        biomeName={activeHex ? BOARDS[hexBiome(activeHex)].name : undefined}
+        attackerName={activeHex ? PLAYERS[match.turn].name : undefined}
+        onClaim={activeHex ? claimAndReturn : undefined}
+        onExit={() => (activeHex ? setPhase('map') : location.reload())}
         onNewRandom={() => skirmish(undefined)} />
     );
   }
@@ -80,8 +87,18 @@ export default function App() {
           {pending && (
             <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setPending(null)}>
               <motion.div className="bg-white rounded-2xl border-2 border-ink p-5 max-w-sm w-full shadow-comic max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} initial={{ scale: 0.9, y: 16 }} animate={{ scale: 1, y: 0 }}>
-                <div className="font-black text-sm mb-2 text-center" style={{ color: PLAYERS[match.turn].color }}>{PLAYERS[match.turn].dot} {PLAYERS[match.turn].name} contests this niche</div>
-                <BiomeDossier code={pending} />
+                <div className="font-black text-sm mb-1 text-center" style={{ color: PLAYERS[match.turn].color }}>{PLAYERS[match.turn].dot} {PLAYERS[match.turn].name} contests this hex</div>
+                {(() => {
+                  const code = hexBiome(pending); const hs = hexesOfBiome(code);
+                  const mine = hs.filter((id) => match.owners[id] === match.turn).length;
+                  return (
+                    <div className="text-[11px] text-neutral-500 mb-2 text-center">
+                      {BOARDS[code].icon} {BOARDS[code].name} · patch {hs.indexOf(pending) + 1} of {hs.length}
+                      {hs.length > 1 && <> — you hold {mine}/{hs.length}. Take them all to control the biome 👑</>}
+                    </div>
+                  );
+                })()}
+                <BiomeDossier code={hexBiome(pending)} />
                 <div className="text-[11px] text-neutral-500 mt-3 mb-2 text-center">Choose how you'll fight for it — match your strategies to what the biome supplies.</div>
                 <div className="flex gap-3 justify-center">
                   <button onClick={() => chooseType('eat')} className="px-5 py-3 rounded-xl border-2 border-ink bg-eat text-white font-extrabold shadow-comic">🦷 EAT IT</button>
