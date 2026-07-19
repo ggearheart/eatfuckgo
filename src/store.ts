@@ -5,7 +5,7 @@ import type { State, Inst } from './engine/engine';
 import type { Side } from './engine/data';
 
 export type Action =
-  | { t: 'new'; battleType: 'eat' | 'fk'; terrain: string; atkIds: string[]; defIds: string[] }
+  | { t: 'new'; fac: { atk: 'eat' | 'fk'; def: 'eat' | 'fk' }; terrain: string; atkIds: string[]; defIds: string[] }
   | { t: 'rollScenario' }
   | { t: 'rollCata' }
   | { t: 'proceedCata' }
@@ -31,7 +31,7 @@ function clone(s: State): State {
 }
 
 function reducer(state: State | null, a: Action): State | null {
-  if (a.t === 'new') return E.newBattle(a.battleType, a.terrain, a.atkIds, a.defIds);
+  if (a.t === 'new') return E.newBattle(a.fac, a.terrain, a.atkIds, a.defIds);
   if (!state) return state;
   const s = clone(state);
   switch (a.t) {

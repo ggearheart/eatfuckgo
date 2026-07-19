@@ -4,8 +4,8 @@
 // strategy cards suited to them. Zones are collapsible to tame the density.
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ZONES } from '../game/humboldt';
-import { BOARDS, EAT, FK } from '../engine/data';
+import { ZONES, FACTION } from '../game/humboldt';
+import { BOARDS, EAT, FK, BIOME_AFFINITY } from '../engine/data';
 import { TERRAIN_ELEMENTS, ELEMENTS } from '../engine/elements';
 
 const cardsFor = (code: string) =>
@@ -48,6 +48,8 @@ export function ZonePanel() {
                         <div key={code} className="mb-2 pl-0.5">
                           <div className="text-xs font-bold flex items-center gap-1">
                             <span>{b.icon}</span><span>{b.name}</span>
+                            <span className="text-[8px] px-1 py-0.5 rounded font-black text-white" title={`Favors ${FACTION[BIOME_AFFINITY[code]].name} (+1 die)`}
+                              style={{ background: BIOME_AFFINITY[code] === 'eat' ? '#c4561e' : '#7b4fa0' }}>{FACTION[BIOME_AFFINITY[code]].icon}</span>
                             <span className="text-[11px] ml-auto">{els.map((e) => ELEMENTS[e].icon).join('')}</span>
                           </div>
                           <div className="text-[10px] text-neutral-500 leading-snug mt-0.5">{b.desc}</div>

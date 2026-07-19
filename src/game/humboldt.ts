@@ -5,10 +5,13 @@
 import { HEXES, HOME, biomeOwner, hexesOfBiome } from './board';
 
 export type PlayerId = 'p1' | 'p2';
-export const PLAYERS: Record<PlayerId, { name: string; color: string; dot: string }> = {
-  p1: { name: 'Player 1', color: '#c4561e', dot: '🟧' },
-  p2: { name: 'Player 2', color: '#7b4fa0', dot: '🟪' },
+export type Faction = 'eat' | 'fk';
+export const PLAYERS: Record<PlayerId, { name: string; color: string; dot: string; fac: Faction }> = {
+  p1: { name: 'Player 1', color: '#c4561e', dot: '🟧', fac: 'eat' },
+  p2: { name: 'Player 2', color: '#7b4fa0', dot: '🟪', fac: 'fk' },
 };
+export function setPlayerFactions(f1: Faction, f2: Faction) { PLAYERS.p1.fac = f1; PLAYERS.p2.fac = f2; }
+export const FACTION = { eat: { icon: '🦷', name: 'EAT' }, fk: { icon: '🧬', name: 'F*CK' } } as const;
 export const otherPlayer = (p: PlayerId): PlayerId => (p === 'p1' ? 'p2' : 'p1');
 
 // Display names come from the lobby; mutate the shared PLAYERS object so every

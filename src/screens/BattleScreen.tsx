@@ -191,7 +191,7 @@ function SidePanel({ side, s, accent, tint }: { side: Side; s: State; accent: st
   return (
     <div className="flex-1 text-center rounded-xl border-2 p-2" style={{ borderColor: accent, background: tint }}>
       <div className="font-black text-[13px]" style={{ color: accent }}>{side === 'atk' ? '⚔️ Attacker' : '🛡️ Defender'}</div>
-      <LifeTrack life={s.life[side]} start={CFG.startLife} battleType={s.battleType} />
+      <LifeTrack life={s.life[side]} start={CFG.startLife} battleType={s.fac[side]} />
     </div>
   );
 }
@@ -341,7 +341,7 @@ function WeirdoBtn({ s, dispatch }: { s: State; dispatch: Dispatch<Action> }) {
 
 function MusterBtn({ s, dispatch }: { s: State; dispatch: Dispatch<Action> }) {
   const [open, setOpen] = useState(false);
-  const deck = s.battleType === 'eat' ? EAT : FK;
+  const deck = s.fac.def === 'eat' ? EAT : FK;
   const have = new Set(s.stack.def.map((i: any) => i.card.id));
   const opts = deck.filter((c: any) => (c.ter || []).includes(s.terrain) && !have.has(c.id));
   return (

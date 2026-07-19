@@ -82,6 +82,18 @@ export const FK: any[] = [
   {id:'sex_parasit',n:'Sexual Parasitism',art:'🎣',t:3,off:0,def:3,rep:8,ada:4,mov:1,ter:['O','C'],rs:0,fs:0},
 ];
 
+// A card belongs to whichever deck it comes from — lets any renderer show the
+// right faction (OFF vs REP, orange vs purple) without threading a battleType.
+export const facOfCard = (c: any): 'eat' | 'fk' => (EAT.some((x: any) => x.id === c.id) ? 'eat' : FK.some((x: any) => x.id === c.id) ? 'fk' : 'eat');
+
+// Each biome leans toward one grand strategy: predation/energy (EAT) or
+// proliferation/speciation (F*CK). The favored side rolls +1 die there, and a
+// wild (unowned) biome is defended by its favored faction.
+export const BIOME_AFFINITY: Record<string, 'eat' | 'fk'> = {
+  V: 'eat', I: 'eat', A: 'eat', D: 'eat', O: 'eat', // vents, ice, savanna, desert, ocean — acquisition & predation
+  P: 'fk', S: 'fk', F: 'fk', C: 'fk', G: 'fk',       // swamp, reef, forest, cave, lab — blooms, speciation, engineering
+};
+
 export const WEIRDO_STACKS: Record<string,any> = {
   1:{n:'Lamprey',art:'🪡',cards:[
     {id:'w_sucker',n:'Sucker Lock',art:'🪠',off:4,def:1,rep:6,ada:4,mov:4,ter:['O','S'],kw:['venom']},

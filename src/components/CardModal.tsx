@@ -2,7 +2,7 @@
 import { motion } from 'framer-motion';
 import { CardArt, KwTags } from './CardArt';
 import { ModChips } from './ModChips';
-import { BOARDS, kwOf } from '../engine/data';
+import { BOARDS, kwOf, facOfCard } from '../engine/data';
 import { diceProfile, expHits, verdict, deployTurn } from '../engine/engine';
 import type { State } from '../engine/engine';
 import type { Side } from '../engine/data';
@@ -28,7 +28,7 @@ export function CardModal({ state, side, idx, onClose, onDeploy }: {
   const [vLabel, vColor] = verdict(p);
   const terNames = (c.ter || []).map((t: string) => (BOARDS[t] || { name: t }).name).join(', ') || '—';
   const kws = kwOf(c).map((k: string) => KW_GLOSSARY[k]).filter(Boolean);
-  const powStat = state.battleType === 'eat' ? `OFF ${c.off}` : `REP ${c.rep}`;
+  const powStat = facOfCard(c) === 'eat' ? `OFF ${c.off}` : `REP ${c.rep}`;
   const canDeploy = deployTurn(state, side) && (!inst.exhausted || kwOf(c).includes('swarm'));
   const sc = state.scenario ? `${state.scenario.icon} ${state.scenario.name}` : 'no scenario yet';
 

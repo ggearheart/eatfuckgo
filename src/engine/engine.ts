@@ -3,7 +3,7 @@
 // State (the React reducer clones first), so the UI stays a function of State.
 import {
   CFG, EAT, FK, WEIRDO_STACKS, TERRAIN_FX, CATASTROPHES, SCENARIOS, BOARDS,
-  hasKW, isAquatic, setCtx, Side,
+  BIOME_AFFINITY, hasKW, isAquatic, setCtx, Side,
 } from './data';
 import { matchedElements, ELEMENTS } from './elements';
 
@@ -15,7 +15,9 @@ export interface Profile { dice: number; hitOn: number; power: number; parts: Pa
 export interface Pool { rolls: { r: number; h: boolean; r2?: number }[]; hits: number }
 export interface LastRoll { aP: Profile; dP: Profile; a: Pool; d: Pool; aHits: number; dHits: number; aCard: any; dCard: any; dominant: Side | null }
 export interface State {
-  battleType: 'eat' | 'fk'; terrain: string; round: number; step: Step;
+  battleType: 'eat' | 'fk'; // = fac.atk, kept for overall theming
+  fac: { atk: 'eat' | 'fk'; def: 'eat' | 'fk' }; // each side fights as its own faction
+  terrain: string; round: number; step: Step;
   life: Record<Side, number>; energy: Record<Side, number>;
   alloc: Record<Side, { meta: number; repro: number }>;
   stack: Record<Side, Inst[]>; played: Record<Side, number | null>; pending: Record<Side, number | null>;
@@ -40,14 +42,14 @@ export const deployTurn = (s: State, side: Side) =>
 const mkInst = (card: any, isWeirdo = false): Inst => ({ card, adapt: 0, exhausted: false, isWeirdo });
 const log = (s: State, m: string) => { s.log.push(m); };
 
-export function newBattle(battleType: 'eat' | 'fk', terrain: string, atkIds: string[], defIds: string[]): State {
-  const deck = battleType === 'eat' ? EAT : FK;
-  const pick = (ids: string[]) => deck.filter((c) => ids.includes(c.id)).map((c) => mkInst(c));
+export function newBattle(fac: { atk: 'eat' | 'fk'; def: 'eat' | 'fk' }, terrain: string, atkIds: string[], defIds: string[]): State {
+  const deckOf = (f: 'eat' | 'fk') => (f === 'eat' ? EAT : FK);
+  const pick = (f: 'eat' | 'fk', ids: string[]) => deckOf(f).filter((c) => ids.includes(c.id)).map((c) => mkInst(c));
   const s: State = {
-    battleType, terrain, round: 1, step: 'scenario',
+    battleType: fac.atk, fac, terrain, round: 1, step: 'scenario',
     life: { atk: START_LIFE, def: START_LIFE }, energy: { atk: E, def: E },
     alloc: { atk: { meta: E, repro: 0 }, def: { meta: E, repro: 0 } },
-    stack: { atk: pick(atkIds), def: pick(defIds) }, played: { atk: null, def: null }, pending: { atk: null, def: null },
+    stack: { atk: pick(fac.atk, atkIds), def: pick(fac.def, defIds) }, played: { atk: null, def: null }, pending: { atk: null, def: null },
     scenario: null, story: '', cata: null, cataChecked: false, cataDice: null,
     weirdoUsed: false, musterUsed: false, winner: null, outcome: '',
     log: [`⚔️ Terrain Clash in ${BOARDS[terrain].name}! Life ${START_LIFE} each.`], lastRoll: null,
@@ -89,14 +91,16 @@ export function proceedCata(s: State) { if (s.step === 'catacheck') s.step = 'sc
 const basePower = (i: Inst, bt: 'eat' | 'fk') => (bt === 'eat' ? i.card.off : i.card.rep) + (i.adapt || 0);
 
 export function diceProfile(s: State, inst: Inst, side: Side | null, oppCard: any | null): Profile {
-  setCtx(s.battleType, s.terrain);
-  const c = inst.card, pw = basePower(inst, s.battleType);
+  const bt = side ? s.fac[side] : s.battleType;
+  setCtx(bt, s.terrain);
+  const c = inst.card, pw = basePower(inst, bt);
   let dice = Math.max(1, Math.ceil(pw / 2) + 2);
   let hitOn = Math.max(2, Math.min(6, 6 - Math.floor((c.ada || 0) / 3)));
   const parts: Part[] = [];
   const add = (t: string, src: Part['src']) => parts.push({ t, src });
   add(`${dice} dice (power ${pw})`, 'base');
   add(`hits ${hitOn}+ (ADA ${c.ada})`, 'base');
+  if (BIOME_AFFINITY[s.terrain] === bt) { dice += 1; add(`+1 die · biome favors ${bt === 'eat' ? 'EAT' : 'F*CK'}`, 'terrain'); }
   let reroll = false, first = false;
   const tf = TERRAIN_FX[s.terrain] || {};
   const native = (c.ter || []).includes(s.terrain);
@@ -183,7 +187,7 @@ function applyRepro(s: State, side: Side) {
   const who = sideName(side);
   if (r >= 2) { s.life[side]++; log(s, `🧬 ${who} reproduces — +1 life.`); }
   if (r >= 3) {
-    const deck = s.battleType === 'eat' ? EAT : FK;
+    const deck = s.fac[side] === 'eat' ? EAT : FK;
     const opts = deck.filter((c) => (c.ter || []).includes(s.terrain));
     if (opts.length) { const c = opts[Math.floor(Math.random() * opts.length)]; s.stack[side].push(mkInst(c)); log(s, `🥚 ${who} spawns ${c.art} ${c.n}!`); }
   }
@@ -235,7 +239,7 @@ export function summonWeirdo(s: State, roll: number) {
   log(s, `🧬 Attacker summons ${w.art} ${w.n} — its ${w.cards.length}-card stack joins the fight!`);
 }
 export function muster(s: State, id: string) {
-  const deck = s.battleType === 'eat' ? EAT : FK;
+  const deck = s.fac.def === 'eat' ? EAT : FK;
   const c = deck.find((x) => x.id === id);
   if (!c) return;
   s.musterUsed = true;

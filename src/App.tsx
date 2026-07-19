@@ -4,8 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useBattle } from './store';
 import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
-import { EAT, FK, BOARDS } from './engine/data';
-import { freshMatch, otherPlayer, heldBy, biomesControlledBy, matchWinner, biomeWinThreshold, livingBiomes, setPlayerNames, PLAYERS, MatchState } from './game/humboldt';
+import { EAT, FK, BOARDS, BIOME_AFFINITY } from './engine/data';
+import { freshMatch, otherPlayer, heldBy, biomesControlledBy, matchWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, FACTION, PLAYERS, MatchState, Faction } from './game/humboldt';
 import { curBiome, hexesOfBiome, tickClock, foothold, STAGE_LABELS } from './game/board';
 import { BiomeDossier } from './components/BiomeDossier';
 
@@ -29,29 +29,35 @@ export default function App() {
   const [warmingNote, setWarmingNote] = useState<string | null>(null);
   const [p1Name, setP1Name] = useState('');
   const [p2Name, setP2Name] = useState('');
+  const [p1Fac, setP1Fac] = useState<Faction>('eat');
+  const [p2Fac, setP2Fac] = useState<Faction>('fk');
   const [log, setLog] = useState<string[]>([]);
 
-  // ── free-play skirmish (no map) ──
+  const deckOf = (f: Faction) => (f === 'eat' ? EAT : FK);
+
+  // ── free-play skirmish (no map): a true EAT vs F*CK duel ──
   function skirmish(bt?: 'eat' | 'fk') {
-    const battleType = bt ?? (Math.random() < 0.5 ? 'eat' : 'fk');
+    const atk = bt ?? (Math.random() < 0.5 ? 'eat' : 'fk');
+    const def: Faction = atk === 'eat' ? 'fk' : 'eat';
     const terrain = TERRAINS[rand(TERRAINS.length)];
-    const deck = battleType === 'eat' ? EAT : FK;
     setActiveHex(null);
-    dispatch({ t: 'new', battleType, terrain, atkIds: randStack(deck, 2 + rand(4)), defIds: randStack(deck, 2 + rand(4)) });
+    dispatch({ t: 'new', fac: { atk, def }, terrain, atkIds: randStack(deckOf(atk), 2 + rand(4)), defIds: randStack(deckOf(def), 2 + rand(4)) });
     setPhase('battle');
   }
 
   // ── Humboldt match ──
-  function startMatch() { setPlayerNames(p1Name, p2Name); setMatch(freshMatch()); setResult(null); setWarmingNote(null); setLog([`🌱 ${PLAYERS.p1.name} vs ${PLAYERS.p2.name} — the mountain awaits.`]); setPhase('map'); }
+  function startMatch() { setPlayerNames(p1Name, p2Name); setPlayerFactions(p1Fac, p2Fac); setMatch(freshMatch()); setResult(null); setWarmingNote(null); setLog([`🌱 ${PLAYERS.p1.name} (${FACTION[p1Fac].name}) vs ${PLAYERS.p2.name} (${FACTION[p2Fac].name}) — the mountain awaits.`]); setPhase('map'); }
   function pickBiome(id: string) { setWarmingNote(null); setPending(id); }
-  function chooseType(bt: 'eat' | 'fk') {
+  // contest: you fight as your faction; the defender fights as theirs (or the biome's, if wild)
+  function contest() {
     const hex = pending!; setPending(null); setActiveHex(hex);
-    const deck = bt === 'eat' ? EAT : FK;
+    const atkFac = PLAYERS[match.turn].fac;
+    const defOwner = match.owners[hex];
+    const defFac: Faction = defOwner ? PLAYERS[defOwner].fac : BIOME_AFFINITY[curBiome(match.states, hex)];
     // territory economy: your foothold (adjacent held hexes) deepens your hand
     const atkN = Math.min(5, 2 + foothold(match.owners, hex, match.turn));
-    const defOwner = match.owners[hex];
     const defN = defOwner ? Math.min(5, 2 + foothold(match.owners, hex, defOwner)) : 3; // wild incumbency
-    dispatch({ t: 'new', battleType: bt, terrain: curBiome(match.states, hex), atkIds: randStack(deck, atkN), defIds: randStack(deck, defN) });
+    dispatch({ t: 'new', fac: { atk: atkFac, def: defFac }, terrain: curBiome(match.states, hex), atkIds: randStack(deckOf(atkFac), atkN), defIds: randStack(deckOf(defFac), defN) });
     setPhase('battle');
   }
   function claimAndReturn() {
@@ -128,22 +134,31 @@ export default function App() {
                 })()}
                 <BiomeDossier code={curBiome(match.states, pending)} />
                 {(() => {
+                  const code = curBiome(match.states, pending);
                   const atkFh = foothold(match.owners, pending, match.turn);
                   const defOwner = match.owners[pending];
                   const atkN = Math.min(5, 2 + atkFh);
                   const defN = defOwner ? Math.min(5, 2 + foothold(match.owners, pending, defOwner)) : 3;
+                  const atkFac = PLAYERS[match.turn].fac;
+                  const defFac: Faction = defOwner ? PLAYERS[defOwner].fac : BIOME_AFFINITY[code];
+                  const aff = BIOME_AFFINITY[code];
                   return (
-                    <div className="text-[11px] mt-3 mb-1 text-center rounded-lg bg-stone-100 border border-stone-300 px-2 py-1.5">
-                      🏰 Foothold <b>+{atkFh}</b> — you field <b>{atkN}</b> strateg{atkN === 1 ? 'y' : 'ies'} vs the {defOwner ? 'holder' : 'wild'}’s <b>{defN}</b>.
-                      {atkFh > 0 && <span className="text-neutral-500"> Adjacent ground you hold pays off.</span>}
-                    </div>
+                    <>
+                      <div className="text-[12px] mt-3 text-center rounded-lg bg-stone-100 border border-stone-300 px-2 py-2">
+                        <div className="font-bold">
+                          {FACTION[atkFac].icon} You fight as <b>{FACTION[atkFac].name}</b> · {atkN} strateg{atkN === 1 ? 'y' : 'ies'}
+                          <span className="text-neutral-400"> vs </span>
+                          {FACTION[defFac].icon} {defOwner ? PLAYERS[defOwner].name : 'the wild'} <b>{FACTION[defFac].name}</b> · {defN}
+                        </div>
+                        <div className="text-[10px] text-neutral-500 mt-1">🏰 Foothold +{atkFh} · this biome favors {FACTION[aff].icon} <b>{FACTION[aff].name}</b> (+1 die to them)</div>
+                      </div>
+                      <button onClick={contest} className="mt-3 w-full px-5 py-3 rounded-xl border-2 border-ink text-white font-extrabold shadow-comic"
+                        style={{ background: atkFac === 'eat' ? '#c4561e' : '#7b4fa0' }}>
+                        ⚔️ Contest as {FACTION[atkFac].icon} {FACTION[atkFac].name}
+                      </button>
+                    </>
                   );
                 })()}
-                <div className="text-[11px] text-neutral-500 mt-1 mb-2 text-center">Choose how you'll fight for it — match your strategies to what the biome supplies.</div>
-                <div className="flex gap-3 justify-center">
-                  <button onClick={() => chooseType('eat')} className="px-5 py-3 rounded-xl border-2 border-ink bg-eat text-white font-extrabold shadow-comic">🦷 EAT IT</button>
-                  <button onClick={() => chooseType('fk')} className="px-5 py-3 rounded-xl border-2 border-ink bg-fk text-white font-extrabold shadow-comic">🧬 F*CK IT</button>
-                </div>
                 <button onClick={() => setPending(null)} className="mt-3 text-xs text-neutral-500 underline block mx-auto">cancel</button>
               </motion.div>
             </motion.div>
@@ -177,19 +192,28 @@ export default function App() {
 
       {/* player setup */}
       <div className="mt-7 w-full max-w-md bg-white/70 rounded-2xl border-2 border-ink p-4 shadow-comic">
-        <div className="text-[11px] font-black uppercase tracking-wide text-neutral-500 mb-2 text-center">Players</div>
+        <div className="text-[11px] font-black uppercase tracking-wide text-neutral-500 mb-2 text-center">Players — name &amp; pick your strategy</div>
         <div className="flex gap-3">
-          <label className="flex-1">
-            <span className="text-xs font-bold" style={{ color: PLAYERS.p1.color }}>🟧 Side 1</span>
-            <input value={p1Name} onChange={(e) => setP1Name(e.target.value)} placeholder="Player 1" maxLength={16}
-              className="mt-1 w-full px-3 py-2 rounded-lg border-2 border-ink text-sm font-bold outline-none focus:ring-2" style={{ ['--tw-ring-color' as any]: PLAYERS.p1.color }} />
-          </label>
-          <label className="flex-1">
-            <span className="text-xs font-bold" style={{ color: PLAYERS.p2.color }}>🟪 Side 2</span>
-            <input value={p2Name} onChange={(e) => setP2Name(e.target.value)} placeholder="Player 2" maxLength={16}
-              className="mt-1 w-full px-3 py-2 rounded-lg border-2 border-ink text-sm font-bold outline-none focus:ring-2" style={{ ['--tw-ring-color' as any]: PLAYERS.p2.color }} />
-          </label>
+          {([['p1', p1Name, setP1Name, p1Fac, setP1Fac], ['p2', p2Name, setP2Name, p2Fac, setP2Fac]] as const).map(([pid, name, setName, fac, setFac], i) => (
+            <div key={pid} className="flex-1">
+              <span className="text-xs font-bold" style={{ color: PLAYERS[pid].color }}>{PLAYERS[pid].dot} Side {i + 1}</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={`Player ${i + 1}`} maxLength={16}
+                className="mt-1 w-full px-3 py-2 rounded-lg border-2 border-ink text-sm font-bold outline-none focus:ring-2" style={{ ['--tw-ring-color' as any]: PLAYERS[pid].color }} />
+              <div className="mt-1.5 flex gap-1">
+                {(['eat', 'fk'] as Faction[]).map((f) => (
+                  <button key={f} onClick={() => setFac(f)}
+                    className="flex-1 text-[11px] font-extrabold py-1 rounded-lg border-2 transition-colors"
+                    style={fac === f
+                      ? { borderColor: '#1a0e04', background: f === 'eat' ? '#c4561e' : '#7b4fa0', color: '#fff' }
+                      : { borderColor: '#d4d4d4', color: '#9ca3af', background: '#fff' }}>
+                    {FACTION[f].icon} {FACTION[f].name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
+        {p1Fac === p2Fac && <div className="text-[10px] text-center text-neutral-500 mt-2">Mirror match — both playing {FACTION[p1Fac].name}.</div>}
       </div>
 
       {/* game modes */}
