@@ -5,7 +5,7 @@ import { useBattle } from './store';
 import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
-import { freshMatch, otherPlayer, heldBy, biomesControlledBy, setPlayerNames, PLAYERS, MatchState } from './game/humboldt';
+import { freshMatch, otherPlayer, heldBy, biomesControlledBy, matchWinner, biomeWinThreshold, livingBiomes, setPlayerNames, PLAYERS, MatchState } from './game/humboldt';
 import { curBiome, hexesOfBiome, tickClock, STAGE_LABELS } from './game/board';
 import { BiomeDossier } from './components/BiomeDossier';
 
@@ -63,10 +63,18 @@ export default function App() {
     }
     const tick = tickClock(match); // every turn advances the warming clock
     if (tick.changed.length) entries.push(`🔥 ${STAGE_LABELS[tick.warming]}: ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed.`);
-    setMatch({ ...match, owners, states: tick.states, warming: tick.warming, turns: tick.turns, turn: otherPlayer(match.turn) });
+    const next = { ...match, owners, states: tick.states, warming: tick.warming, turns: tick.turns, turn: otherPlayer(match.turn) };
+    setMatch(next);
     setWarmingNote(tick.changed.length
       ? `🔥 The planet warmed to ${STAGE_LABELS[tick.warming]} — ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed as habitats shifted.`
       : null);
+    // victory: someone now controls a majority of the living biomes
+    const won = matchWinner(next);
+    if (won) {
+      const name = PLAYERS[won].name, n = biomesControlledBy(next, won), need = biomeWinThreshold(next);
+      entries.push(`🏆 ${name} controls ${n} of ${livingBiomes(next).length} biomes — victory!`);
+      setResult(`🏆 ${name} wins — controlling ${n} of ${livingBiomes(next).length} living biomes (majority needed: ${need}).`);
+    }
     if (entries.length) setLog((l) => [...l, ...entries]);
     setActiveHex(null); setPhase('map');
   }

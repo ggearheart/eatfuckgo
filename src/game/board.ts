@@ -108,7 +108,7 @@ export function biomeOwner(owners: Record<string, PlayerId | null>, code: string
 // ─────────────────────────────────────────────────────────────────────────────
 // The warming clock. Temperature rises one stage every TURNS_PER_STAGE turns;
 // at each step the most heat-vulnerable hexes transform to a hotter state.
-export const STAGE_LABELS = ['Holocene', '+1.5 °C', '+2 °C', '+3 °C', '+4 °C', 'New Planet'];
+export const STAGE_LABELS = ['Holocene', '+1.5 °C', '+2 °C', '+3 °C', '+4 °C', 'Hothouse'];
 export const MAX_WARMING = STAGE_LABELS.length - 1;
 const TURNS_PER_STAGE = 3;
 const RATE = 3; // hexes that can flip per warming step (so change creeps, not snaps)

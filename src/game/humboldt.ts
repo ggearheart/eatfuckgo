@@ -2,7 +2,7 @@
 // The board as Humboldt's Naturgemälde transect: our 10 biomes grouped under
 // his climate/altitude zones, placed sea-level → summit on a stylized cross-section.
 
-import { HEXES, HOME, biomeOwner } from './board';
+import { HEXES, HOME, biomeOwner, hexesOfBiome } from './board';
 
 export type PlayerId = 'p1' | 'p2';
 export const PLAYERS: Record<PlayerId, { name: string; color: string; dot: string }> = {
@@ -52,3 +52,16 @@ export const heldBy = (m: MatchState, p: PlayerId) => HEXES.filter((h) => m.owne
 // whole biomes (all current patches) controlled by a player
 export const biomesControlledBy = (m: MatchState, p: PlayerId) =>
   ALL_BIOMES.filter((code) => biomeOwner(m.owners, code, m.states) === p).length;
+
+// ── victory: control a majority of the biomes that still exist ──
+// Warming drives some biomes extinct (0 hexes), so we count only living ones.
+export const livingBiomes = (m: MatchState) =>
+  ALL_BIOMES.filter((code) => hexesOfBiome(code, m.states).length > 0);
+// strict majority of living biomes
+export const biomeWinThreshold = (m: MatchState) => Math.floor(livingBiomes(m).length / 2) + 1;
+export function matchWinner(m: MatchState): PlayerId | null {
+  const need = biomeWinThreshold(m);
+  if (biomesControlledBy(m, 'p1') >= need) return 'p1';
+  if (biomesControlledBy(m, 'p2') >= need) return 'p2';
+  return null;
+}

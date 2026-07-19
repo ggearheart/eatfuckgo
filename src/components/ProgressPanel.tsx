@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Right column: live match progress — turn, warming clock, per-biome control,
 // running player log, and the end-match button.
-import { PLAYERS, heldBy, biomesControlledBy, ALL_BIOMES, MatchState } from '../game/humboldt';
+import { PLAYERS, heldBy, biomesControlledBy, biomeWinThreshold, livingBiomes, ALL_BIOMES, MatchState } from '../game/humboldt';
 import { BOARDS } from '../engine/data';
 import { biomeOwner, hexesOfBiome, STAGE_LABELS, MAX_WARMING } from '../game/board';
 
 export function ProgressPanel({ match, log, onEnd }: { match: MatchState; log: string[]; onEnd: () => void }) {
   const warmPct = (match.warming / MAX_WARMING) * 100;
   const t = PLAYERS[match.turn];
+  const need = biomeWinThreshold(match), living = livingBiomes(match).length;
   return (
     <div className="rounded-2xl border-2 border-ink bg-white/70 p-2.5 text-left flex flex-col gap-2.5" style={{ maxHeight: '74vh' }}>
       <div className="font-black text-sm">📊 Progress</div>
@@ -19,10 +20,15 @@ export function ProgressPanel({ match, log, onEnd }: { match: MatchState; log: s
 
       {/* warming */}
       <div>
-        <div className="text-[11px] font-bold flex justify-between mb-0.5"><span>🌡️ {STAGE_LABELS[match.warming]}</span><span className="text-neutral-400">New Planet</span></div>
+        <div className="text-[11px] font-bold flex justify-between mb-0.5"><span>🌡️ {STAGE_LABELS[match.warming]}</span><span className="text-neutral-400">Hothouse</span></div>
         <div className="h-2.5 rounded-full border-2 border-ink overflow-hidden bg-white">
           <div className="h-full transition-all duration-500" style={{ width: `${warmPct}%`, background: 'linear-gradient(90deg,#f2c14e,#e8743b,#c0392b)' }} />
         </div>
+      </div>
+
+      {/* victory goal */}
+      <div className="rounded-lg bg-amber-50 border border-amber-300 px-2 py-1 text-[11px] font-bold text-amber-800 text-center">
+        🎯 First to control <b>{need}</b> of {living} living biomes wins
       </div>
 
       {/* biome control */}
