@@ -85,6 +85,17 @@ export const SPECIES: Species[] = [
   { id: 'ecoli', name: 'Engineered E. coli', emoji: '🧫', strategy: 'hgt', biome: 'G' },
   { id: 'genedrive', name: 'Gene-Drive Mosquito', emoji: '🦟', strategy: 'repro_manip', biome: 'G' },
   { id: 'labmouse', name: 'Knockout Lab Mouse', emoji: '🐁', strategy: 'viviparity', biome: 'G' },
+
+  // ── coverage fills: a species for every remaining strategy ──
+  { id: 'kelp', name: 'Giant Kelp', emoji: '🌿', strategy: 'oxygenic', biome: 'S' },            // EAT · Oxygenic Photosynthesis
+  { id: 'fiddler', name: 'Fiddler Crab', emoji: '🦀', strategy: 'detritivory', biome: 'P' },     // EAT · Detritivory / Scavenging
+  { id: 'okapi', name: 'Okapi', emoji: '🦌', strategy: 'browse', biome: 'F' },                   // EAT · Browse / Selective Feeding
+  { id: 'wilddog', name: 'African Wild Dog', emoji: '🐕', strategy: 'persistence', biome: 'A' }, // EAT · Persistence Hunt
+  { id: 'frigatebird', name: 'Frigatebird', emoji: '🕊️', strategy: 'klepto', biome: 'O' },       // EAT · Kleptoparasitism
+  { id: 'hydra', name: 'Freshwater Hydra', emoji: '🪸', strategy: 'budding', biome: 'P' },        // F*CK · Budding / Colonial
+  { id: 'cuttlefish', name: 'Cuttlefish', emoji: '🦑', strategy: 'display', biome: 'S' },         // F*CK · Honest Signal / Display
+  { id: 'rightwhale', name: 'Right Whale', emoji: '🐋', strategy: 'sperm_comp', biome: 'O' },     // F*CK · Sperm Competition
+  { id: 'brownbear', name: 'Brown Bear', emoji: '🐻', strategy: 'infanticide', biome: 'I' },      // F*CK · Infanticide / Takeover
 ];
 
 export const SPECIES_BY_ID: Record<string, Species> = Object.fromEntries(SPECIES.map((s) => [s.id, s]));
