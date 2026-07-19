@@ -29,6 +29,7 @@ export default function App() {
   const [warmingNote, setWarmingNote] = useState<string | null>(null);
   const [p1Name, setP1Name] = useState('');
   const [p2Name, setP2Name] = useState('');
+  const [log, setLog] = useState<string[]>([]);
 
   // ── free-play skirmish (no map) ──
   function skirmish(bt?: 'eat' | 'fk') {
@@ -41,7 +42,7 @@ export default function App() {
   }
 
   // ── Humboldt match ──
-  function startMatch() { setPlayerNames(p1Name, p2Name); setMatch(freshMatch()); setResult(null); setWarmingNote(null); setPhase('map'); }
+  function startMatch() { setPlayerNames(p1Name, p2Name); setMatch(freshMatch()); setResult(null); setWarmingNote(null); setLog([`🌱 ${PLAYERS.p1.name} vs ${PLAYERS.p2.name} — the mountain awaits.`]); setPhase('map'); }
   function pickBiome(id: string) { setWarmingNote(null); setPending(id); }
   function chooseType(bt: 'eat' | 'fk') {
     const hex = pending!; setPending(null); setActiveHex(hex);
@@ -51,16 +52,22 @@ export default function App() {
   }
   function claimAndReturn() {
     const owners = { ...match.owners };
+    const atkName = PLAYERS[match.turn].name, defName = PLAYERS[otherPlayer(match.turn)].name;
+    const biomeNm = activeHex ? BOARDS[curBiome(match.states, activeHex)].name : 'the field';
+    const entries: string[] = [];
     if (state?.winner && activeHex) {
       const atk = match.turn, def = otherPlayer(match.turn);
-      if (state.winner === 'atk') owners[activeHex] = atk;
-      else if (state.winner === 'def') owners[activeHex] = def;
+      if (state.winner === 'atk') { owners[activeHex] = atk; entries.push(`⚔️ ${atkName} won a ${biomeNm} hex.`); }
+      else if (state.winner === 'def') { owners[activeHex] = def; entries.push(`🛡️ ${defName} held ${biomeNm}.`); }
+      else entries.push(`🤝 Stalemate at ${biomeNm}.`);
     }
     const tick = tickClock(match); // every turn advances the warming clock
+    if (tick.changed.length) entries.push(`🔥 ${STAGE_LABELS[tick.warming]}: ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed.`);
     setMatch({ ...match, owners, states: tick.states, warming: tick.warming, turns: tick.turns, turn: otherPlayer(match.turn) });
     setWarmingNote(tick.changed.length
       ? `🔥 The planet warmed to ${STAGE_LABELS[tick.warming]} — ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed as habitats shifted.`
       : null);
+    if (entries.length) setLog((l) => [...l, ...entries]);
     setActiveHex(null); setPhase('map');
   }
   function endMatch() {
@@ -88,7 +95,7 @@ export default function App() {
   if (phase === 'map') {
     return (
       <>
-        <MapScreen match={match} onPick={pickBiome} onEnd={endMatch} onHome={() => setPhase('home')} note={warmingNote} />
+        <MapScreen match={match} onPick={pickBiome} onEnd={endMatch} onHome={() => setPhase('home')} note={warmingNote} log={log} />
         <AnimatePresence>
           {pending && (
             <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setPending(null)}>

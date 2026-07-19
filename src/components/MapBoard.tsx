@@ -21,14 +21,6 @@ export function MapBoard({ match, turn, onPick }: { match: MatchState; turn: Pla
       {/* light parchment scrim — just enough to seat the hexes without hiding the plate */}
       <rect width="1000" height="620" fill="#f4ead0" opacity="0.14" />
 
-      {/* Humboldt-style zone labels down the left margin */}
-      <g fontFamily="Georgia,'Times New Roman',serif" opacity="0.95"
-        style={{ paintOrder: 'stroke' } as any} stroke="#f6eed6" strokeWidth="3">
-        <text x="16" y="120" fontSize="13" fontStyle="italic" fontWeight="800" fill="#4a3a22">Nival · snow &amp; fire</text>
-        <text x="16" y="252" fontSize="13" fontStyle="italic" fontWeight="800" fill="#4a3a22">Montane · forest &amp; rock</text>
-        <text x="16" y="384" fontSize="13" fontStyle="italic" fontWeight="800" fill="#4a3a22">Lowland · plains &amp; swamp</text>
-        <text x="16" y="512" fontSize="13" fontStyle="italic" fontWeight="800" fill="#4a3a22">Coastal · sea &amp; ocean</text>
-      </g>
       <text x="984" y="606" textAnchor="end" fontSize="10.5" fontFamily="Georgia,serif" fontStyle="italic" fill="#4a3a22"
         style={{ paintOrder: 'stroke' } as any} stroke="#f6eed6" strokeWidth="2.5">Naturgemälde (1807), A. v. Humboldt — Zentralbibliothek Zürich · public domain</text>
 
