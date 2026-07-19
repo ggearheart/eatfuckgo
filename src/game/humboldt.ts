@@ -11,6 +11,13 @@ export const PLAYERS: Record<PlayerId, { name: string; color: string; dot: strin
 };
 export const otherPlayer = (p: PlayerId): PlayerId => (p === 'p1' ? 'p2' : 'p1');
 
+// Display names come from the lobby; mutate the shared PLAYERS object so every
+// screen that reads PLAYERS[p].name picks them up without prop-threading.
+export function setPlayerNames(p1: string, p2: string) {
+  PLAYERS.p1.name = p1.trim() || 'Player 1';
+  PLAYERS.p2.name = p2.trim() || 'Player 2';
+}
+
 export const ALL_BIOMES = ['V', 'I', 'F', 'D', 'A', 'P', 'S', 'O', 'C', 'G'];
 
 // Humboldt zones (contemporary labels), high → low, each grouping our biomes.

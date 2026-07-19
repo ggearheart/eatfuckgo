@@ -18,9 +18,9 @@ import { CardModal } from '../components/CardModal';
 
 const CATA_ROUND = 3;
 
-export function BattleScreen({ state: s, dispatch, onNewRandom, onExit, mapMode, biomeName, attackerName, onClaim }: {
+export function BattleScreen({ state: s, dispatch, onNewRandom, onExit, mapMode, biomeName, attackerName, defenderName, onClaim }: {
   state: State; dispatch: Dispatch<Action>; onNewRandom: () => void; onExit: () => void;
-  mapMode?: boolean; biomeName?: string; attackerName?: string; onClaim?: () => void;
+  mapMode?: boolean; biomeName?: string; attackerName?: string; defenderName?: string; onClaim?: () => void;
 }) {
   const [inspect, setInspect] = useState<{ side: Side; idx: number } | null>(null);
   const theme = s.battleType;
@@ -169,7 +169,7 @@ export function BattleScreen({ state: s, dispatch, onNewRandom, onExit, mapMode,
         )}
       </AnimatePresence>
 
-      <AnimatePresence>{s.winner && <ResultOverlay s={s} onNewRandom={onNewRandom} onExit={onExit} onClaim={onClaim} biomeName={biomeName} attackerName={attackerName} />}</AnimatePresence>
+      <AnimatePresence>{s.winner && <ResultOverlay s={s} onNewRandom={onNewRandom} onExit={onExit} onClaim={onClaim} biomeName={biomeName} attackerName={attackerName} defenderName={defenderName} />}</AnimatePresence>
     </div>
   );
 }
@@ -368,12 +368,12 @@ function MusterBtn({ s, dispatch }: { s: State; dispatch: Dispatch<Action> }) {
   );
 }
 
-function ResultOverlay({ s, onNewRandom, onExit, onClaim, biomeName, attackerName }: {
-  s: State; onNewRandom: () => void; onExit: () => void; onClaim?: () => void; biomeName?: string; attackerName?: string;
+function ResultOverlay({ s, onNewRandom, onExit, onClaim, biomeName, attackerName, defenderName }: {
+  s: State; onNewRandom: () => void; onExit: () => void; onClaim?: () => void; biomeName?: string; attackerName?: string; defenderName?: string;
 }) {
   const win = s.winner;
   const banner = win === 'atk' ? '⚔️ Attacker Wins the Clash!' : win === 'def' ? '🛡️ Defender Holds!' : '💀 Mutual Collapse';
-  const winnerName = win === 'draw' ? null : win === 'atk' ? attackerName : (attackerName ? `Player ${attackerName.endsWith('1') ? '2' : '1'}` : 'Defender');
+  const winnerName = win === 'draw' ? null : win === 'atk' ? attackerName : (defenderName ?? 'Defender');
   return (
     <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <motion.div className="bg-white rounded-2xl border-2 border-ink p-6 text-center max-w-md w-full" initial={{ scale: 0.8, y: 30 }} animate={{ scale: 1, y: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 22 }}>

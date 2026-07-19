@@ -5,7 +5,7 @@ import { useBattle } from './store';
 import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
-import { freshMatch, otherPlayer, heldBy, biomesControlledBy, PLAYERS, MatchState } from './game/humboldt';
+import { freshMatch, otherPlayer, heldBy, biomesControlledBy, setPlayerNames, PLAYERS, MatchState } from './game/humboldt';
 import { curBiome, hexesOfBiome, tickClock, STAGE_LABELS } from './game/board';
 import { BiomeDossier } from './components/BiomeDossier';
 
@@ -27,6 +27,8 @@ export default function App() {
   const [activeHex, setActiveHex] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [warmingNote, setWarmingNote] = useState<string | null>(null);
+  const [p1Name, setP1Name] = useState('');
+  const [p2Name, setP2Name] = useState('');
 
   // ── free-play skirmish (no map) ──
   function skirmish(bt?: 'eat' | 'fk') {
@@ -39,7 +41,7 @@ export default function App() {
   }
 
   // ── Humboldt match ──
-  function startMatch() { setMatch(freshMatch()); setResult(null); setWarmingNote(null); setPhase('map'); }
+  function startMatch() { setPlayerNames(p1Name, p2Name); setMatch(freshMatch()); setResult(null); setWarmingNote(null); setPhase('map'); }
   function pickBiome(id: string) { setWarmingNote(null); setPending(id); }
   function chooseType(bt: 'eat' | 'fk') {
     const hex = pending!; setPending(null); setActiveHex(hex);
@@ -76,6 +78,7 @@ export default function App() {
         mapMode={activeHex != null}
         biomeName={activeHex ? BOARDS[curBiome(match.states, activeHex)].name : undefined}
         attackerName={activeHex ? PLAYERS[match.turn].name : undefined}
+        defenderName={activeHex ? PLAYERS[otherPlayer(match.turn)].name : undefined}
         onClaim={activeHex ? claimAndReturn : undefined}
         onExit={() => (activeHex ? setPhase('map') : location.reload())}
         onNewRandom={() => skirmish(undefined)} />
@@ -128,23 +131,65 @@ export default function App() {
     );
   }
 
-  // ── Home ──
+  // ── Lobby ──
   return (
-    <div className="min-h-full flex flex-col items-center justify-center text-center p-6">
-      <motion.h1 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="font-display text-5xl sm:text-6xl tracking-tight">
+    <div className="min-h-full flex flex-col items-center p-6 pb-12">
+      <motion.h1 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="mt-4 font-display text-5xl sm:text-6xl tracking-tight text-center">
         <span className="text-eat">EAT</span> <span className="text-fk">FUCK</span> <span className="text-ink">GO</span>
       </motion.h1>
-      <p className="mt-3 max-w-md text-neutral-600 text-sm">
+      <p className="mt-3 max-w-md text-neutral-600 text-sm text-center">
         A duel of evolutionary strategies across the biomes of a single mountain — after Humboldt's <i>Naturgemälde</i>. Contest niches, win clashes, and hold your ground as the climate shifts.
       </p>
-      <button onClick={startMatch} className="mt-8 px-7 py-3.5 rounded-xl border-2 border-ink bg-ink text-white font-extrabold shadow-comic text-lg">🏔️ Start a match (claim biomes)</button>
-      <div className="mt-4 flex flex-wrap gap-3 justify-center">
-        <button onClick={() => skirmish('eat')} className="px-5 py-2.5 rounded-xl border-2 border-ink bg-eat text-white font-extrabold shadow-comic text-sm">🦷 EAT skirmish</button>
-        <button onClick={() => skirmish('fk')} className="px-5 py-2.5 rounded-xl border-2 border-ink bg-fk text-white font-extrabold shadow-comic text-sm">🧬 F*CK skirmish</button>
-        <button onClick={() => skirmish(undefined)} className="px-5 py-2.5 rounded-xl border-2 border-ink bg-white font-extrabold shadow-comic text-sm">🎲 Random</button>
+
+      {/* player setup */}
+      <div className="mt-7 w-full max-w-md bg-white/70 rounded-2xl border-2 border-ink p-4 shadow-comic">
+        <div className="text-[11px] font-black uppercase tracking-wide text-neutral-500 mb-2 text-center">Players</div>
+        <div className="flex gap-3">
+          <label className="flex-1">
+            <span className="text-xs font-bold" style={{ color: PLAYERS.p1.color }}>🟧 Side 1</span>
+            <input value={p1Name} onChange={(e) => setP1Name(e.target.value)} placeholder="Player 1" maxLength={16}
+              className="mt-1 w-full px-3 py-2 rounded-lg border-2 border-ink text-sm font-bold outline-none focus:ring-2" style={{ ['--tw-ring-color' as any]: PLAYERS.p1.color }} />
+          </label>
+          <label className="flex-1">
+            <span className="text-xs font-bold" style={{ color: PLAYERS.p2.color }}>🟪 Side 2</span>
+            <input value={p2Name} onChange={(e) => setP2Name(e.target.value)} placeholder="Player 2" maxLength={16}
+              className="mt-1 w-full px-3 py-2 rounded-lg border-2 border-ink text-sm font-bold outline-none focus:ring-2" style={{ ['--tw-ring-color' as any]: PLAYERS.p2.color }} />
+          </label>
+        </div>
       </div>
+
+      {/* game modes */}
+      <div className="mt-4 w-full max-w-md grid gap-3">
+        <button onClick={startMatch} className="text-left rounded-2xl border-2 border-ink bg-ink text-white p-4 shadow-comic hover:translate-y-[-1px] transition-transform">
+          <div className="font-extrabold text-lg">🎭 Pass &amp; Play</div>
+          <div className="text-xs opacity-80">Two players, one device — take turns claiming biomes across the warming board.</div>
+        </button>
+
+        <button disabled className="text-left rounded-2xl border-2 border-dashed border-neutral-300 bg-white/60 text-neutral-500 p-4 cursor-not-allowed relative">
+          <span className="absolute top-3 right-3 text-[9px] font-black uppercase bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded-full">Coming soon</span>
+          <div className="font-extrabold text-lg">🔗 Invite a friend</div>
+          <div className="text-xs">Share a code or link to play someone remotely. Networking to come.</div>
+        </button>
+
+        <button disabled className="text-left rounded-2xl border-2 border-dashed border-neutral-300 bg-white/60 text-neutral-500 p-4 cursor-not-allowed relative">
+          <span className="absolute top-3 right-3 text-[9px] font-black uppercase bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded-full">Coming soon</span>
+          <div className="font-extrabold text-lg">🤖 Vs Computer</div>
+          <div className="text-xs">Face an AI ecologist. Reserved until the core mechanics settle.</div>
+        </button>
+      </div>
+
+      {/* quick skirmish */}
+      <div className="mt-6 w-full max-w-md text-center">
+        <div className="text-[11px] font-black uppercase tracking-wide text-neutral-500 mb-2">Quick skirmish — a single clash, no board</div>
+        <div className="flex flex-wrap gap-3 justify-center">
+          <button onClick={() => skirmish('eat')} className="px-4 py-2 rounded-xl border-2 border-ink bg-eat text-white font-extrabold shadow-comic text-sm">🦷 EAT</button>
+          <button onClick={() => skirmish('fk')} className="px-4 py-2 rounded-xl border-2 border-ink bg-fk text-white font-extrabold shadow-comic text-sm">🧬 F*CK</button>
+          <button onClick={() => skirmish(undefined)} className="px-4 py-2 rounded-xl border-2 border-ink bg-white font-extrabold shadow-comic text-sm">🎲 Random</button>
+        </div>
+      </div>
+
       <a href="/eatfuckgo/infographic/" target="_blank" rel="noopener" className="mt-7 inline-block px-5 py-2.5 rounded-xl border-2 border-ink bg-white font-extrabold text-sm shadow-comic">📖 How to play — the illustrated guide ↗</a>
-      <a className="mt-6 text-xs text-neutral-500 underline" href="/eatfuckgo/legacy/index.html" target="_blank" rel="noopener">view the original prototype →</a>
+      <a className="mt-5 text-xs text-neutral-500 underline" href="/eatfuckgo/legacy/index.html" target="_blank" rel="noopener">view the original prototype →</a>
     </div>
   );
 }
