@@ -6,6 +6,7 @@ import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
 import { freshMatch, otherPlayer, heldBy, PLAYERS, MatchState, PlayerId } from './game/humboldt';
+import { BiomeDossier } from './components/BiomeDossier';
 
 const rand = (n: number) => Math.floor(Math.random() * n);
 function randStack(deck: any[], n: number): string[] {
@@ -78,14 +79,15 @@ export default function App() {
         <AnimatePresence>
           {pending && (
             <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setPending(null)}>
-              <motion.div className="bg-white rounded-2xl border-2 border-ink p-5 text-center max-w-sm w-full shadow-comic" onClick={(e) => e.stopPropagation()} initial={{ scale: 0.9, y: 16 }} animate={{ scale: 1, y: 0 }}>
-                <div className="font-black text-lg mb-1">{PLAYERS[match.turn].dot} {PLAYERS[match.turn].name} attacks {BOARDS[pending].icon} {BOARDS[pending].name}</div>
-                <div className="text-xs text-neutral-500 mb-4">Choose how you'll fight for this niche.</div>
+              <motion.div className="bg-white rounded-2xl border-2 border-ink p-5 max-w-sm w-full shadow-comic max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} initial={{ scale: 0.9, y: 16 }} animate={{ scale: 1, y: 0 }}>
+                <div className="font-black text-sm mb-2 text-center" style={{ color: PLAYERS[match.turn].color }}>{PLAYERS[match.turn].dot} {PLAYERS[match.turn].name} contests this niche</div>
+                <BiomeDossier code={pending} />
+                <div className="text-[11px] text-neutral-500 mt-3 mb-2 text-center">Choose how you'll fight for it — match your strategies to what the biome supplies.</div>
                 <div className="flex gap-3 justify-center">
                   <button onClick={() => chooseType('eat')} className="px-5 py-3 rounded-xl border-2 border-ink bg-eat text-white font-extrabold shadow-comic">🦷 EAT IT</button>
                   <button onClick={() => chooseType('fk')} className="px-5 py-3 rounded-xl border-2 border-ink bg-fk text-white font-extrabold shadow-comic">🧬 F*CK IT</button>
                 </div>
-                <button onClick={() => setPending(null)} className="mt-4 text-xs text-neutral-500 underline">cancel</button>
+                <button onClick={() => setPending(null)} className="mt-3 text-xs text-neutral-500 underline block mx-auto">cancel</button>
               </motion.div>
             </motion.div>
           )}
