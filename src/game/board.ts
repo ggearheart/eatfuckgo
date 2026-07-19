@@ -6,17 +6,18 @@
 import type { PlayerId, MatchState } from './humboldt';
 
 // Rows top→base of the mountain — a regular 1…8 triangle of 36 hex spots.
-// Counts (≈ real habitat extent): F6 D6 I4 A4 S4 O4 V2 C2 P2 G2. Forest on the
-// wet slope, desert in the rain-shadow, ice+vent up top, marine at the base.
+// Every row is a palindrome, so the board is LEFT-RIGHT MIRROR-SYMMETRIC: neither
+// bottom-corner home has an advantage. The two GM Labs sit side-by-side dead-center
+// at level 3, equidistant from both players. Counts: F6 D6 I4 A4 S4 O4 V2 C2 P2 G2.
 const LAYOUT: string[][] = [
-  ['V'],                                   // summit crater (Chimborazo is a volcano)
-  ['V', 'I'],                              // upper cone + snow line
-  ['I', 'I', 'I'],                         // snow field
-  ['F', 'F', 'C', 'D'],                    // treeline: forest slope, cave in the massif, dry flank
-  ['F', 'F', 'C', 'D', 'D'],               // mid slope
-  ['F', 'F', 'A', 'A', 'D', 'D'],          // lower slope → savanna
-  ['S', 'A', 'A', 'P', 'P', 'D', 'G'],     // lowland belt: coast, savanna, swamp, desert edge, lab
-  ['O', 'O', 'S', 'S', 'S', 'O', 'O', 'G'],// marine base + anthropocene corner
+  ['V'],                                        // summit vent (centerline)
+  ['I', 'I'],                                   // ice cap
+  ['I', 'V', 'I'],                              // snow field around a central vent
+  ['F', 'G', 'G', 'F'],                         // level 3: twin GM Labs dead-center, forest flanks
+  ['F', 'D', 'C', 'D', 'F'],                    // forest flanks, desert belt, cave in the massif
+  ['F', 'A', 'D', 'D', 'A', 'F'],               // lower slope
+  ['S', 'A', 'D', 'C', 'D', 'A', 'S'],          // lowland belt + a deep-cave core
+  ['O', 'O', 'S', 'P', 'P', 'S', 'O', 'O'],     // marine base, swamp at the center
 ];
 
 const R = 35;
