@@ -7,12 +7,14 @@ import { SPECIES, speciesCat } from './species';
 
 export type PlayerId = 'p1' | 'p2' | 'p3' | 'p4';
 export type Faction = 'eat' | 'fk';
+// legion emblem: the Japanese-fireworks shell that blooms over a player's ground
+export type BurstKind = 'chrysanthemum' | 'peony' | 'kamuro' | 'willow';
 export const ALL_PLAYERS: PlayerId[] = ['p1', 'p2', 'p3', 'p4'];
-export const PLAYERS: Record<PlayerId, { name: string; color: string; dot: string; fac: Faction }> = {
-  p1: { name: 'Player 1', color: '#c4561e', dot: '🟧', fac: 'eat' },
-  p2: { name: 'Player 2', color: '#7b4fa0', dot: '🟪', fac: 'fk' },
-  p3: { name: 'Player 3', color: '#2e8b57', dot: '🟩', fac: 'eat' },
-  p4: { name: 'Player 4', color: '#2a74b0', dot: '🟦', fac: 'fk' },
+export const PLAYERS: Record<PlayerId, { name: string; color: string; dot: string; fac: Faction; emblem: BurstKind }> = {
+  p1: { name: 'Player 1', color: '#c4561e', dot: '🟧', fac: 'eat', emblem: 'chrysanthemum' },
+  p2: { name: 'Player 2', color: '#7b4fa0', dot: '🟪', fac: 'fk', emblem: 'peony' },
+  p3: { name: 'Player 3', color: '#2e8b57', dot: '🟩', fac: 'eat', emblem: 'kamuro' },
+  p4: { name: 'Player 4', color: '#2a74b0', dot: '🟦', fac: 'fk', emblem: 'willow' },
 };
 export const FACTION = { eat: { icon: '🦷', name: 'EAT' }, fk: { icon: '🧬', name: 'F*CK' } } as const;
 // next player in a match's turn order (2–4 players)
@@ -22,6 +24,7 @@ export const nextPlayer = (players: PlayerId[], cur: PlayerId): PlayerId => play
 // every screen that reads PLAYERS[p] picks them up without prop-threading.
 export function setPlayerNames(names: string[]) { ALL_PLAYERS.forEach((p, i) => { PLAYERS[p].name = (names[i] || '').trim() || `Player ${i + 1}`; }); }
 export function setPlayerFactions(facs: Faction[]) { ALL_PLAYERS.forEach((p, i) => { if (facs[i]) PLAYERS[p].fac = facs[i]; }); }
+export function setPlayerEmblems(embs: BurstKind[]) { ALL_PLAYERS.forEach((p, i) => { if (embs[i]) PLAYERS[p].emblem = embs[i]; }); }
 
 export const ALL_BIOMES = ['V', 'I', 'F', 'D', 'A', 'P', 'S', 'O', 'C', 'G'];
 

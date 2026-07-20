@@ -4,6 +4,7 @@
 import { PLAYERS, heldBy, biomesControlledBy, biomeWinThreshold, livingBiomes, ALL_BIOMES, MatchState } from '../game/humboldt';
 import { BOARDS } from '../engine/data';
 import { biomeOwner, hexesOfBiome, degLabel, MAX_C } from '../game/board';
+import { BurstBadge } from './LegionBurst';
 
 // caption for the current isotherm (Humboldt & Bonpland feel the heat)
 const heatCaption = (deg: number) =>
@@ -86,8 +87,8 @@ export function ProgressPanel({ match, log, onEnd }: { match: MatchState; log: s
         </div>
         <div className="mt-1.5 pt-1.5 border-t border-neutral-200 space-y-0.5">
           {match.players.map((p) => (
-            <div key={p} className="text-[11px] font-bold flex justify-between items-center" style={{ color: PLAYERS[p].color }}>
-              <span className="truncate">{PLAYERS[p].dot} {PLAYERS[p].name}</span>
+            <div key={p} className="text-[11px] font-bold flex justify-between items-center gap-1" style={{ color: PLAYERS[p].color }}>
+              <span className="truncate flex items-center gap-1"><BurstBadge color={PLAYERS[p].color} kind={PLAYERS[p].emblem} size={18} /> {PLAYERS[p].name}</span>
               <span className="whitespace-nowrap tabular-nums">{biomesControlledBy(match, p)}👑 · {heldBy(match, p)}h · {match.collection[p].length}🧬</span>
             </div>
           ))}

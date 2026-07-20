@@ -7,11 +7,13 @@ import { aiMapMove, aiChooseContest } from './game/ai';
 import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
-import { freshMatch, nextPlayer, heldBy, biomesControlledBy, matchWinner, pluralityWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, FACTION, PLAYERS, ALL_PLAYERS, ALL_BIOMES, ADAPT_CAP, MatchState, Faction, PlayerId } from './game/humboldt';
+import { freshMatch, nextPlayer, heldBy, biomesControlledBy, matchWinner, pluralityWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, setPlayerEmblems, FACTION, PLAYERS, ALL_PLAYERS, ALL_BIOMES, ADAPT_CAP, MatchState, Faction, BurstKind, PlayerId } from './game/humboldt';
+import { BurstBadge, BURST_META } from './components/LegionBurst';
 import { curBiome, hexesOfBiome, tickWarming, degLabel, MAX_C } from './game/board';
 import { speciesInBiome, speciesCat, recruitOptions, SPECIES_BY_ID } from './game/species';
 import { ContestSetup, ContestResult } from './components/ContestSetup';
 import { MusterScreen } from './components/MusterScreen';
+import { MusterGuide, MusterGuidePage } from './components/MusterGuide';
 
 const rand = (n: number) => Math.floor(Math.random() * n);
 function randStack(deck: any[], n: number): string[] {
@@ -35,10 +37,12 @@ export default function App() {
   const [playerCount, setPlayerCount] = useState(2);
   const [names, setNames] = useState<string[]>(['', '', '', '']);
   const [facs, setFacs] = useState<Faction[]>(['eat', 'fk', 'eat', 'fk']);
+  const [emblems, setEmblems] = useState<BurstKind[]>(['chrysanthemum', 'peony', 'kamuro', 'willow']);
   const [ai, setAi] = useState<boolean[]>([false, false, false, false]); // which lobby seats are computer
   const [aiPlayers, setAiPlayers] = useState<Set<PlayerId>>(new Set());
   const [log, setLog] = useState<string[]>([]);
   const [reach, setReach] = useState<number | null>(null); // this turn's 1d6 movement roll
+  const [showGuide, setShowGuide] = useState(false);
   const hasAI = aiPlayers.size > 0;
 
   const deckOf = (f: Faction) => (f === 'eat' ? EAT : FK);
@@ -56,7 +60,7 @@ export default function App() {
   // ── Humboldt match ──
   function startMatch() {
     const players = ALL_PLAYERS.slice(0, playerCount);
-    setPlayerNames(names); setPlayerFactions(facs);
+    setPlayerNames(names); setPlayerFactions(facs); setPlayerEmblems(emblems);
     setAiPlayers(new Set(players.filter((_, i) => ai[i])));
     setMatch(freshMatch(players)); setResult(null); setWarmingNote(null); setReach(null); setMustering(null); setPending(null);
     setLog([`🌱 ${players.map((p, i) => `${PLAYERS[p].dot} ${PLAYERS[p].name}${ai[i] ? ' 🤖' : ''}`).join(' · ')} — the mountain awaits.`]);
@@ -218,6 +222,9 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, match, reach, pending, mustering, result, aiPlayers]);
 
+  // standalone reference tab (pinned via the #guide hash)
+  if (typeof location !== 'undefined' && location.hash === '#guide') return <MusterGuidePage />;
+
   if (phase === 'battle' && state) {
     return (
       <BattleScreen state={state} dispatch={dispatch}
@@ -235,7 +242,11 @@ export default function App() {
     return (
       <>
         <MapScreen match={match} onPick={pickBiome} onEnd={endMatch} onHome={() => setPhase('home')} note={warmingNote} log={log} reach={reach} onRoll={rollMove} onPass={passTurn} />
+        {/* muster guide — recruit-ladder reference, pinnable to its own tab */}
+        <button onClick={() => setShowGuide(true)} title="Recruit ladders by biome"
+          className="fixed bottom-3 right-3 z-40 px-3 py-2 rounded-full border-2 border-ink bg-white font-extrabold text-xs shadow-comic">📖 Muster guide</button>
         <AnimatePresence>
+          {showGuide && <MusterGuide onClose={() => setShowGuide(false)} />}
           {mustering && (
             <MusterScreen match={match} hex={mustering} player={match.turn}
               onRecruit={(sp) => { const h = mustering; setMustering(null); doMuster(h, sp); }}
@@ -315,6 +326,20 @@ export default function App() {
                   </button>
                 ))}
               </div>
+              {/* legion emblem — the firework shell that blooms over this player's ground */}
+              <div className="mt-1 flex items-center gap-1">
+                <span className="text-[9px] font-bold text-neutral-400">Legion</span>
+                <div className="flex gap-1 flex-1 justify-end">
+                  {BURST_META.map((bm) => (
+                    <button key={bm.kind} title={`${bm.label} — ${bm.hint}`}
+                      onClick={() => setEmblems(emblems.map((x, j) => (j === i ? bm.kind : x)))}
+                      className="rounded border-2 p-0.5 leading-none transition-colors"
+                      style={emblems[i] === bm.kind ? { borderColor: PLAYERS[pid].color, background: '#fffdf5' } : { borderColor: '#e2e2e2', background: '#fff' }}>
+                      <BurstBadge color={emblems[i] === bm.kind ? PLAYERS[pid].color : '#b8b0a2'} kind={bm.kind} size={16} />
+                    </button>
+                  ))}
+                </div>
+              </div>
               <button onClick={() => setAi(ai.map((x, j) => (j === i ? !x : x)))}
                 className="mt-1 w-full text-[10px] font-extrabold py-1 rounded border-2 transition-colors"
                 style={ai[i] ? { borderColor: '#1a0e04', background: '#1a0e04', color: '#fff' } : { borderColor: '#d4d4d4', color: '#9ca3af', background: '#fff' }}>
@@ -354,8 +379,12 @@ export default function App() {
         </div>
       </div>
 
-      <a href="/eatfuckgo/infographic/" target="_blank" rel="noopener" className="mt-7 inline-block px-5 py-2.5 rounded-xl border-2 border-ink bg-white font-extrabold text-sm shadow-comic">📖 How to play — the illustrated guide ↗</a>
+      <div className="mt-7 flex flex-wrap gap-2 justify-center">
+        <a href="/eatfuckgo/infographic/" target="_blank" rel="noopener" className="inline-block px-5 py-2.5 rounded-xl border-2 border-ink bg-white font-extrabold text-sm shadow-comic">📖 How to play — the illustrated guide ↗</a>
+        <button onClick={() => setShowGuide(true)} className="inline-block px-5 py-2.5 rounded-xl border-2 border-ink bg-white font-extrabold text-sm shadow-comic">🧬 Muster guide — recruit ladders</button>
+      </div>
       <a className="mt-5 text-xs text-neutral-500 underline" href="/eatfuckgo/legacy/index.html" target="_blank" rel="noopener">view the original prototype →</a>
+      <AnimatePresence>{showGuide && <MusterGuide onClose={() => setShowGuide(false)} />}</AnimatePresence>
     </div>
   );
 }
