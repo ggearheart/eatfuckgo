@@ -60,7 +60,7 @@ export function ProgressPanel({ match, log, onEnd }: { match: MatchState; log: s
 
       {/* victory goal */}
       <div className="rounded-lg bg-amber-50 border border-amber-300 px-2 py-1 text-[11px] font-bold text-amber-800 text-center">
-        🎯 First to control <b>{need}</b> of {living} living biomes wins
+        🎯 Control <b>{need}</b> of {living} biomes to win now — else the <b>most</b> biomes at +4 °C
       </div>
 
       {/* biome control */}

@@ -7,7 +7,7 @@ import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
 import { freshMatch, nextPlayer, heldBy, biomesControlledBy, matchWinner, pluralityWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, FACTION, PLAYERS, ALL_PLAYERS, ALL_BIOMES, ADAPT_CAP, MatchState, Faction, PlayerId } from './game/humboldt';
 import { curBiome, hexesOfBiome, tickWarming, degLabel, MAX_C } from './game/board';
-import { speciesInBiome, SPECIES_BY_ID } from './game/species';
+import { speciesInBiome, speciesCat, SPECIES_BY_ID } from './game/species';
 import { ContestSetup, ContestResult } from './components/ContestSetup';
 
 const rand = (n: number) => Math.floor(Math.random() * n);
@@ -63,9 +63,11 @@ export default function App() {
   function muster(id: string) {
     const owners = { ...match.owners }; owners[id] = match.turn;
     const biome = curBiome(match.states, id);
-    const newIds = speciesInBiome(biome).map((s) => s.id).filter((sid) => !match.collection[match.turn].includes(sid));
-    const entries = [`🌱 ${PLAYERS[match.turn].name} mustered into ${BOARDS[biome].name}${newIds.length ? ` (+${newIds.length} species)` : ''}.`];
-    finishTurn(owners, entries, false, { player: match.turn, species: speciesInBiome(biome).map((s) => s.id) });
+    const fac = PLAYERS[match.turn].fac; // you settle a niche with your own lineage's species
+    const settled = speciesInBiome(biome).filter((s) => speciesCat(s) === fac).map((s) => s.id);
+    const newIds = settled.filter((sid) => !match.collection[match.turn].includes(sid));
+    const entries = [`🌱 ${PLAYERS[match.turn].name} mustered into ${BOARDS[biome].name}${newIds.length ? ` (+${newIds.length} ${FACTION[fac].name} species)` : ''}.`];
+    finishTurn(owners, entries, false, { player: match.turn, species: settled });
   }
   function rollMove() { setReach(1 + Math.floor(Math.random() * 6)); }
   function passTurn() { finishTurn({ ...match.owners }, [`⤳ ${PLAYERS[match.turn].name} has no move — passes.`], false); }
@@ -128,7 +130,8 @@ export default function App() {
     const owner = match.owners[hex] as PlayerId;
     const owners = { ...match.owners }; owners[hex] = match.turn;
     const biome = curBiome(match.states, hex);
-    finishTurn(owners, [`🏳️ ${PLAYERS[owner].name} conceded ${BOARDS[biome].name} to ${PLAYERS[match.turn].name}.`], true, { player: match.turn, species: speciesInBiome(biome).map((s) => s.id) });
+    const settled = speciesInBiome(biome).filter((s) => speciesCat(s) === PLAYERS[match.turn].fac).map((s) => s.id);
+    finishTurn(owners, [`🏳️ ${PLAYERS[owner].name} conceded ${BOARDS[biome].name} to ${PLAYERS[match.turn].name}.`], true, { player: match.turn, species: settled });
     setPhase('map');
   }
   function claimAndReturn() {

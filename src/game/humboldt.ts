@@ -56,7 +56,9 @@ export function starterCollection(fac: Faction): string[] {
   const own = SPECIES.filter((s) => speciesCat(s) === fac).map((s) => s.id);
   const other = SPECIES.filter((s) => speciesCat(s) !== fac).map((s) => s.id);
   const shuffled = (a: string[]) => { const x = [...a]; for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x; };
-  return Array.from(new Set([...shuffled(own).slice(0, 22), ...shuffled(other).slice(0, 5)]));
+  // small starter — you grow your team roster by mustering biomes, and pick up
+  // off-team species only by winning clashes.
+  return Array.from(new Set([...shuffled(own).slice(0, 12), ...shuffled(other).slice(0, 4)]));
 }
 export function freshMatch(players: PlayerId[] = ['p1', 'p2']): MatchState {
   const owners: Record<string, PlayerId | null> = {};
