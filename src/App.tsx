@@ -9,8 +9,9 @@ import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
 import { freshMatch, nextPlayer, heldBy, biomesControlledBy, matchWinner, pluralityWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, FACTION, PLAYERS, ALL_PLAYERS, ALL_BIOMES, ADAPT_CAP, MatchState, Faction, PlayerId } from './game/humboldt';
 import { curBiome, hexesOfBiome, tickWarming, degLabel, MAX_C } from './game/board';
-import { speciesInBiome, speciesCat, SPECIES_BY_ID } from './game/species';
+import { speciesInBiome, speciesCat, recruitOptions, SPECIES_BY_ID } from './game/species';
 import { ContestSetup, ContestResult } from './components/ContestSetup';
+import { MusterScreen } from './components/MusterScreen';
 
 const rand = (n: number) => Math.floor(Math.random() * n);
 function randStack(deck: any[], n: number): string[] {
@@ -26,7 +27,8 @@ export default function App() {
   const [state, dispatch] = useBattle();
   const [phase, setPhase] = useState<Phase>('home');
   const [match, setMatch] = useState<MatchState>(freshMatch);
-  const [pending, setPending] = useState<string | null>(null); // hex id awaiting battle-type choice
+  const [pending, setPending] = useState<string | null>(null); // hex id awaiting clash setup
+  const [mustering, setMustering] = useState<string | null>(null); // hex id awaiting recruit choice
   const [activeHex, setActiveHex] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [warmingNote, setWarmingNote] = useState<string | null>(null);
@@ -56,7 +58,7 @@ export default function App() {
     const players = ALL_PLAYERS.slice(0, playerCount);
     setPlayerNames(names); setPlayerFactions(facs);
     setAiPlayers(new Set(players.filter((_, i) => ai[i])));
-    setMatch(freshMatch(players)); setResult(null); setWarmingNote(null); setReach(null);
+    setMatch(freshMatch(players)); setResult(null); setWarmingNote(null); setReach(null); setMustering(null); setPending(null);
     setLog([`🌱 ${players.map((p, i) => `${PLAYERS[p].dot} ${PLAYERS[p].name}${ai[i] ? ' 🤖' : ''}`).join(' · ')} — the mountain awaits.`]);
     setPhase('map');
   }
@@ -67,13 +69,20 @@ export default function App() {
     else setPending(id);
   }
   function muster(id: string) {
+    // human gets the interactive recruit screen; the AI auto-recruits
+    if (aiPlayers.has(match.turn)) doMuster(id, aiRecruit(match.turn, curBiome(match.states, id)));
+    else setMustering(id);
+  }
+  function aiRecruit(player: PlayerId, biome: string): string | null {
+    const opts = recruitOptions(match.collection[player], biome, PLAYERS[player].fac).filter((o) => o.unlocked && !o.owned);
+    return opts.length ? opts.sort((a, b) => b.tier - a.tier)[0].species.id : null; // grab the best unlocked recruit
+  }
+  function doMuster(id: string, recruitId: string | null) {
     const owners = { ...match.owners }; owners[id] = match.turn;
     const biome = curBiome(match.states, id);
-    const fac = PLAYERS[match.turn].fac; // you settle a niche with your own lineage's species
-    const settled = speciesInBiome(biome).filter((s) => speciesCat(s) === fac).map((s) => s.id);
-    const newIds = settled.filter((sid) => !match.collection[match.turn].includes(sid));
-    const entries = [`🌱 ${PLAYERS[match.turn].name} mustered into ${BOARDS[biome].name}${newIds.length ? ` (+${newIds.length} ${FACTION[fac].name} species)` : ''}.`];
-    finishTurn(owners, entries, false, { player: match.turn, species: settled });
+    const sp = recruitId ? SPECIES_BY_ID[recruitId] : null;
+    const entries = [`🌱 ${PLAYERS[match.turn].name} settled ${BOARDS[biome].name}${sp ? ` and recruited ${sp.emoji} ${sp.name}` : ''}.`];
+    finishTurn(owners, entries, false, recruitId ? { player: match.turn, species: [recruitId] } : undefined);
   }
   function rollMove() { setReach(1 + Math.floor(Math.random() * 6)); }
   function passTurn() { finishTurn({ ...match.owners }, [`⤳ ${PLAYERS[match.turn].name} has no move — passes.`], false); }
@@ -197,7 +206,7 @@ export default function App() {
   }
   // the computer takes its map turn
   useEffect(() => {
-    if (phase !== 'map' || result || pending || !aiPlayers.has(match.turn)) return;
+    if (phase !== 'map' || result || pending || mustering || !aiPlayers.has(match.turn)) return;
     const id = setTimeout(() => {
       if (reach == null) { rollMove(); return; }
       const mv = aiMapMove(match, match.turn, reach);
@@ -207,7 +216,7 @@ export default function App() {
     }, 650);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, match, reach, pending, result, aiPlayers]);
+  }, [phase, match, reach, pending, mustering, result, aiPlayers]);
 
   if (phase === 'battle' && state) {
     return (
@@ -227,6 +236,11 @@ export default function App() {
       <>
         <MapScreen match={match} onPick={pickBiome} onEnd={endMatch} onHome={() => setPhase('home')} note={warmingNote} log={log} reach={reach} onRoll={rollMove} onPass={passTurn} />
         <AnimatePresence>
+          {mustering && (
+            <MusterScreen match={match} hex={mustering} player={match.turn}
+              onRecruit={(sp) => { const h = mustering; setMustering(null); doMuster(h, sp); }}
+              onCancel={() => setMustering(null)} />
+          )}
           {pending && (
             <ContestSetup match={match} hex={pending} vsAI={hasAI} onAttack={humanAttack}
               onLaunch={launchContest} onConcede={concedeContest} onCancel={() => setPending(null)} />

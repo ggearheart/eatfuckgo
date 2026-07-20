@@ -102,3 +102,23 @@ export const SPECIES_BY_ID: Record<string, Species> = Object.fromEntries(SPECIES
 export const speciesInBiome = (biome: string) => SPECIES.filter((s) => s.biome === biome);
 export const speciesFor = (biome: string, strategy: string) => SPECIES.filter((s) => s.biome === biome && s.strategy === strategy);
 export const speciesCat = (s: Species) => stratCat(s.strategy);
+export const strategyCard = (id: string): any => STRAT[id]; // full strategy card (tier, off, rep, ada…)
+
+// ── recruitment (mustering) ──
+// Settling a biome lets you recruit ONE of its team species. A species is
+// unlocked only if it's the biome's base rung OR you already own a lower-tier
+// species of that biome — your hand climbs each biome's ladder.
+export interface RecruitOption { species: Species; tier: number; owned: boolean; unlocked: boolean; }
+export function recruitOptions(ownedIds: string[], biome: string, fac: 'eat' | 'fk'): RecruitOption[] {
+  const owned = new Set(ownedIds);
+  const list = speciesInBiome(biome).filter((s) => speciesCat(s) === fac);
+  const tierOf = (s: Species) => (STRAT[s.strategy]?.t ?? 0);
+  const minTier = list.length ? Math.min(...list.map(tierOf)) : 0;
+  const ownedTiers = list.filter((s) => owned.has(s.id)).map(tierOf);
+  return list
+    .map((s) => {
+      const tier = tierOf(s);
+      return { species: s, tier, owned: owned.has(s.id), unlocked: tier === minTier || ownedTiers.some((t) => t < tier) };
+    })
+    .sort((a, b) => a.tier - b.tier);
+}
