@@ -88,7 +88,7 @@ h2{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;}
 <header class="hero">
   <div class="wrap">
     <h1 class="display"><span class="eat">EAT</span> <span class="fk">FUCK</span> GO</h1>
-    <p>A two-player duel of evolutionary strategies across the biomes of a single mountain — after Alexander von Humboldt's <i>Naturgemälde</i>. Every organism faces one budget with two demands: <b>EAT</b> (survive &amp; out-compete) versus <b>F*CK</b> (reproduce &amp; out-multiply). Spread across the map, win clashes for territory, and hold your ground as the climate warms.</p>
+    <p>A <b>2–4 player</b> duel of evolutionary strategies across the biomes of a single mountain — after Alexander von Humboldt's <i>Naturgemälde</i>. Every organism faces one budget with two demands: <b>EAT</b> (survive &amp; out-compete) versus <b>F*CK</b> (reproduce &amp; out-multiply). Wander the map settling niches, and clash where your frontiers meet — as the climate warms.</p>
     <div class="hero-imgs">
       <div class="himg eatc"><img data-slug="eat" alt="predation"><div class="cap">🦷 EAT — acquire resources</div></div>
       <div class="himg fkc"><img data-slug="fk" alt="anglerfish sexual parasitism"><div class="cap">🧬 F*CK — propagate genes (anglerfish: male fused to female)</div></div>
@@ -99,12 +99,13 @@ h2{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;}
 <!-- THE GOAL -->
 <section><div class="wrap">
   <div class="kicker">The goal</div>
-  <h2>Control a majority of the living biomes</h2>
-  <p class="lead">The mountain holds 10 biomes, each split into hex "patches." You control a biome only when you hold <b>every</b> patch of it. <b>The first player to control a majority of the biomes that still exist wins</b> — and warming can drive biomes extinct along the way, so the target keeps moving.</p>
+  <h2>Control the most biomes</h2>
+  <p class="lead">The mountain holds 10 biomes, each split into hex "patches." You control a biome only when you hold <b>every</b> patch of it. Grab a <b>majority of the living biomes</b> and you win outright — but in a crowded 3–4 player game that's rare, so the match otherwise ends when the planet hits <b>+4 °C</b>, and whoever controls the <b>most</b> biomes then wins (ties broken by hexes).</p>
   <div class="formula">
     <div class="fbox"><div class="big">🗺️ 10 biomes</div><small>each = 1–3 hex patches</small></div>
     <div class="fbox"><div class="big">👑 Control</div><small>hold every patch of a biome</small></div>
-    <div class="fbox"><div class="big">🏆 Win</div><small>majority of the <b>living</b> biomes</small></div>
+    <div class="fbox"><div class="big">🏆 Win now</div><small>a majority of living biomes</small></div>
+    <div class="fbox"><div class="big">🌡️ …or at +4 °C</div><small>the most biomes when the planet maxes</small></div>
   </div>
 </div></section>
 
@@ -112,7 +113,7 @@ h2{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;}
 <section><div class="wrap">
   <div class="kicker">The board</div>
   <h2>A mountain of niches</h2>
-  <p class="lead">The board is Humboldt's <i>Naturgemälde</i> — biomes stacked by climate from the sea to the summit, laid out as a mirror-symmetric hex field so neither player has an edge. Both players start on <b>opposite ocean corners</b> (life began in the sea) and climb. The two <b>GM Labs</b> sit dead-center, equidistant from both.</p>
+  <p class="lead">The board is Humboldt's <i>Naturgemälde</i> — biomes stacked by climate from the sea to the summit, laid out as a mirror-symmetric hex field so no one has an edge. The <b>2–4 players</b> start spread apart — the two ocean corners, then the summit vent, then the central cave — and wander outward. The two <b>GM Labs</b> sit dead-center.</p>
   <div class="fig"><img src="/eatfuckgo/img/naturgemalde.jpg" alt="Humboldt's Naturgemälde"><div class="cap">Naturgemälde (1807), A. v. Humboldt &amp; A. Bonpland — Zentralbibliothek Zürich · public domain. The game board overlays this cross-section with hex biome patches.</div></div>
   <p class="lead" style="margin-top:18px;">Each biome <b>supplies elements</b> (sunlight, water, minerals, meat, plants, hosts) and <b>favors one strategy</b> — 🦷 EAT (predation &amp; energy) or 🧬 F*CK (proliferation &amp; speciation). Strategies suited to a biome's elements roll more dice there; the favored faction rolls an extra die.</p>
   <div class="grid" id="grid-biome"></div>
@@ -121,12 +122,13 @@ h2{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;}
 <!-- A TURN -->
 <section><div class="wrap">
   <div class="kicker">On your turn</div>
-  <h2>Roll to move, then contest a hex</h2>
+  <h2>Roll to move, then muster or clash</h2>
+  <p class="lead">Movement is Titan-style: your die sets how far you can reach, and what you do depends on <i>who</i> is on the hex. You only <b>fight</b> where two players' frontiers actually meet.</p>
   <div class="steps">
-    <div class="step"><div class="n">🎲</div><h3>Roll 1d6 to move</h3><p>Your roll is your <b>reach</b> — you may contest any hex within that many steps of your territory. Roll 1 = neighbours only; a big roll lets a lineage disperse across the map.</p></div>
-    <div class="step"><div class="n">🎯</div><h3>Pick a hex</h3><p>Tap any glowing (reachable) hex — a neutral patch or one your rival holds — to contest it.</p></div>
-    <div class="step"><div class="n">⚔️</div><h3>Contest it</h3><p>Set up the clash (below). Win and you take the hex; every claim nudges the climate warmer.</p></div>
-    <div class="step"><div class="n">↻</div><h3>Pass</h3><p>Turn passes to your rival, who rolls their own movement die.</p></div>
+    <div class="step"><div class="n">🎲</div><h3>Roll 1d6 to move</h3><p>Your roll is your <b>reach</b> — you may act on any hex within that many steps of your territory. Roll 1 = neighbours only; a big roll lets a lineage disperse across the map.</p></div>
+    <div class="step" style="border-color:#2a9d4a;"><div class="n">🌱</div><h3>Muster a neutral hex</h3><p>A <b>free claim</b>, no fight. You settle the niche — <b>its species of your team join your collection</b> — and it does <b>not</b> heat the planet.</p></div>
+    <div class="step" style="border-color:#c0392b;"><div class="n">⚔️</div><h3>Clash a rival's hex</h3><p>Attacking a hex a rival holds starts the full clash (below). Win and you take it. <b>Only clashes warm the planet.</b></p></div>
+    <div class="step"><div class="n">↻</div><h3>Turn passes</h3><p>Play rotates to the next player, who rolls their own movement die.</p></div>
   </div>
 </div></section>
 
@@ -160,13 +162,14 @@ h2{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;}
     <div class="fbox"><div class="big">Power → 🎲 dice</div><small>OFF (EAT) or REP (F*CK)</small></div>
     <div class="fbox"><div class="big">ADA → hit on N+</div><small>more adaptable = easier hits</small></div>
     <div class="fbox"><div class="big">🏞️ Biome fit</div><small>+1 die per matched element; +1 for the favored faction</small></div>
-    <div class="fbox"><div class="big">👑 Dominant species</div><small>your champion's strategy: +2 dice</small></div>
+    <div class="fbox"><div class="big">👑 Dominant species</div><small>your champion: +2 dice — <b>eroded by adaptation</b></small></div>
   </div>
   <div class="legend">
     <div>🍩 <b>Donuts</b> = life fighting in <span class="eatx">EAT</span> mode</div>
     <div>🥚 <b>Eggs</b> = life fighting in <span class="fkx">F*CK</span> mode</div>
     <div>Most hits wins the clash; life to 0 loses the battle.</div>
   </div>
+  <p class="lead" style="margin-top:18px;"><b>🔴 The Red Queen.</b> Lean on a strategy and the world adapts to it: each time you lead a clash with a strategy, its champion bonus drops next time — <b>+2 → +1 → 0 → −1</b> — while strategies you rest recover. Spam one ace and it turns into a liability; a diverse repertoire stays sharp. The species picker shows each champion's current standing ("fresh · champ +2" → "adapted ×2 · champ 0").</p>
 </div></section>
 
 <!-- SCENARIOS -->
@@ -181,19 +184,19 @@ h2{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;}
 <section><div class="wrap">
   <div class="kicker">Your collection</div>
   <h2>Grow your roster — and watch species go extinct</h2>
-  <p class="lead">You start with a <b>team-biased collection</b> of species (mostly your team, a few of the other) and can only field species you own. It grows and shrinks over the match:</p>
+  <p class="lead">You start with a <b>small team-biased collection</b> and can only field species you own — so which niches you settle and which clashes you win shapes what you can bring to the next fight:</p>
   <div class="formula">
-    <div class="fbox"><div class="big">🧬 Absorb</div><small>win a clash → the defeated dominant species joins your collection</small></div>
-    <div class="fbox"><div class="big">🦴 Extinction</div><small>when warming erases a biome's last patch, its species leave the game for <b>everyone</b></small></div>
-    <div class="fbox"><div class="big">🏳️ Concede</div><small>if you can't field a mode here, you may yield the hex</small></div>
+    <div class="fbox"><div class="big">🌱 Settle</div><small>muster a biome → <b>its species of your team</b> join your collection</small></div>
+    <div class="fbox"><div class="big">🧬 Absorb</div><small>win a clash → the defeated dominant species joins your collection (your only path to <b>off-team</b> species)</small></div>
+    <div class="fbox"><div class="big">🦴 Extinction</div><small>warming erases a biome's last patch → its species leave the game for <b>everyone</b></small></div>
   </div>
 </div></section>
 
 <!-- WARMING -->
 <section><div class="wrap">
   <div class="kicker">The warming isotherm</div>
-  <h2>Every claim heats the planet</h2>
-  <p class="lead">Humboldt mapped the world's <b>isotherms</b>. Here, temperature climbs from <b>0.0 °C to +4.0 °C</b>, gaining <b>+0.5 °C for every 3 hexes claimed</b>. As it rises, the most heat-vulnerable biomes transform — and whoever held a transformed hex is <b>displaced</b> (it goes neutral), forcing migration.</p>
+  <h2>Conflict heats the planet</h2>
+  <p class="lead">Humboldt mapped the world's <b>isotherms</b>. Here, temperature climbs from <b>0.0 °C to +4.0 °C</b>, gaining <b>+0.5 °C for every 3 hexes won in a clash</b> — peaceful mustering stays cool, so the planet only warms once players start fighting over borders. As it rises, the most heat-vulnerable biomes transform, and whoever held a transformed hex is <b>displaced</b> (it goes neutral), forcing migration. At <b>+4 °C</b> the match ends and the biome leader wins.</p>
   <div class="fig"><img src="/eatfuckgo/img/isotherm.jpg" alt="Humboldt's isothermal lines" style="max-height:300px;object-fit:contain;background:#fff;"><div class="cap">Humboldt's System of Isothermal Lines — public domain. In-game, the vertical bar tracks 0 → +4 °C.</div></div>
   <div class="formula">
     <div class="fbox"><div class="big">❄️→🌿 Ice → Bog</div><small>at +1 °C</small></div>
@@ -201,7 +204,7 @@ h2{font-size:clamp(24px,4vw,34px);margin:6px 0 4px;}
     <div class="fbox"><div class="big">🌾→🏜️ Savanna → Desert</div><small>at +2 °C</small></div>
     <div class="fbox"><div class="big">🌲→🌾 Forest → Savanna</div><small>at +3 °C</small></div>
   </div>
-  <p class="lead" style="margin-top:14px;">Vents, caves, and the GM Lab are thermal refuges — they never change. A cautious match stays cool; an aggressive land-grab bakes the planet.</p>
+  <p class="lead" style="margin-top:14px;">Vents, caves, and the GM Lab are thermal refuges — they never change. A match of quiet expansion stays cool; a war over borders bakes the planet.</p>
 </div></section>
 
 <!-- BIOMES (photo reference) is above; STRATEGY REFERENCE below -->
