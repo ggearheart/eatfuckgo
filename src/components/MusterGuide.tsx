@@ -62,9 +62,9 @@ function BiomeCard({ code }: { code: string }) {
           favours {FACTION[aff].icon} {FACTION[aff].name}
         </span>
       </div>
-      <div className="flex gap-3">
+      <div className="flex flex-col gap-1.5">
         <LadderCol biome={code} cat="eat" />
-        <div className="w-px shrink-0" style={{ background: '#efe7d7' }} />
+        <div className="h-px" style={{ background: '#efe7d7' }} />
         <LadderCol biome={code} cat="fk" />
       </div>
     </div>
