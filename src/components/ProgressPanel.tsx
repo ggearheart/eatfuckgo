@@ -5,36 +5,39 @@ import { PLAYERS, heldBy, biomesControlledBy, biomeWinThreshold, livingBiomes, A
 import { BOARDS } from '../engine/data';
 import { biomeOwner, hexesOfBiome, degLabel, MAX_C } from '../game/board';
 
-// Humboldt & Bonpland shed clothing as their isotherm climbs.
-function look(deg: number) {
-  if (deg >= 4) return { face: '🥵', wear: '🩳', caption: 'stripped to shorts' };
-  if (deg >= 3) return { face: '😅', wear: '👕', caption: 'shirtsleeves' };
-  if (deg >= 2) return { face: '🙂', wear: '👔', caption: 'coats off' };
-  if (deg >= 1) return { face: '😐', wear: '🧥', caption: 'coats on' };
-  return { face: '🥶', wear: '🧣', caption: 'bundled in furs' };
-}
+// caption for the current isotherm (Humboldt & Bonpland feel the heat)
+const heatCaption = (deg: number) =>
+  deg >= 4 ? 'sweltering — coats long gone' : deg >= 3 ? 'shirtsleeves' : deg >= 2 ? 'coats off' : deg >= 1 ? 'warming up' : 'bundled against the cold';
+
 function ThermalScale({ warming }: { warming: number }) {
   const pct = (warming / MAX_C) * 100;
-  const l = look(warming);
-  const Explorer = ({ name }: { name: string }) => (
-    <div className="leading-none flex flex-col items-center">
-      <div className="text-2xl">{l.face}</div><div className="text-base -mt-0.5">{l.wear}</div>
+  const heat = warming / MAX_C; // 0..1
+  const Portrait = ({ img, name, pos }: { img: string; name: string; pos: string }) => (
+    <div className="flex flex-col items-center">
+      <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-ink shadow-sm">
+        <img src={`${import.meta.env.BASE_URL}img/portraits/${img}.jpg`} alt={name} className="w-full h-full object-cover" style={{ objectPosition: pos, filter: 'sepia(0.2)' }} />
+        {/* heat flush — grows redder as the isotherm climbs */}
+        <div className="absolute inset-0 transition-opacity duration-500" style={{ background: 'radial-gradient(circle at 50% 40%, #e8431e, transparent 70%)', opacity: (heat * 0.6).toFixed(2), mixBlendMode: 'multiply' }} />
+      </div>
       <div className="text-[8px] text-neutral-500 mt-0.5">{name}</div>
     </div>
   );
   return (
-    <div className="flex gap-2 items-stretch">
-      {/* vertical isotherm bar — 0.0 (bottom) to +4 °C (top) */}
-      <div className="relative w-5 rounded-full border-2 border-ink bg-white overflow-hidden" style={{ height: 118 }}>
-        <div className="absolute bottom-0 left-0 right-0 transition-all duration-500" style={{ height: `${pct}%`, background: 'linear-gradient(0deg,#3b6fa0,#8fbf6f,#f2c14e,#e8743b,#c0392b)' }} />
-      </div>
-      <div className="flex flex-col justify-between text-[9px] font-bold text-neutral-400 py-0.5" style={{ height: 118 }}>
-        <span>+4 °C</span><span>+2 °C</span><span>0.0</span>
-      </div>
-      <div className="flex-1 flex flex-col justify-center items-center text-center">
-        <div className="text-[11px] font-black">🌡️ {degLabel(warming)}</div>
-        <div className="flex gap-3 mt-1"><Explorer name="Humboldt" /><Explorer name="Bonpland" /></div>
-        <div className="text-[9px] italic text-neutral-500 mt-1">{l.caption}</div>
+    <div className="relative rounded-lg overflow-hidden border" style={{ borderColor: '#e2d8c6' }}>
+      {/* Humboldt's isotherm chart, faint, in the white space */}
+      <div className="absolute inset-0 bg-center bg-cover" style={{ backgroundImage: `url(${import.meta.env.BASE_URL}img/isotherm.jpg)`, opacity: 0.13 }} />
+      <div className="relative flex gap-2 items-stretch p-1.5">
+        <div className="relative w-5 rounded-full border-2 border-ink bg-white/80 overflow-hidden" style={{ height: 118 }}>
+          <div className="absolute bottom-0 left-0 right-0 transition-all duration-500" style={{ height: `${pct}%`, background: 'linear-gradient(0deg,#3b6fa0,#8fbf6f,#f2c14e,#e8743b,#c0392b)' }} />
+        </div>
+        <div className="flex flex-col justify-between text-[9px] font-bold text-neutral-500 py-0.5" style={{ height: 118 }}>
+          <span>+4 °C</span><span>+2 °C</span><span>0.0</span>
+        </div>
+        <div className="flex-1 flex flex-col justify-center items-center text-center">
+          <div className="text-[11px] font-black">🌡️ {degLabel(warming)}</div>
+          <div className="flex gap-3 mt-1"><Portrait img="humboldt" name="Humboldt" pos="center 14%" /><Portrait img="bonpland" name="Bonpland" pos="center 22%" /></div>
+          <div className="text-[9px] italic text-neutral-600 mt-1">{heatCaption(warming)}</div>
+        </div>
       </div>
     </div>
   );

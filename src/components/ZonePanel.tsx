@@ -27,9 +27,9 @@ export function ZonePanel() {
       {/* antique herbarium accent — plates from Humboldt & Bonpland's Plantes équinoxiales (1808) */}
       <div className="mb-2 rounded-lg border overflow-hidden" style={{ borderColor: '#c9b597', background: '#efe6d2' }}>
         <div className="flex gap-1 p-1">
-          {['06', '07', '08'].map((n) => (
+          {['05', '06', '07', '08'].map((n) => (
             <img key={n} src={`${import.meta.env.BASE_URL}img/plates/plante${n}.jpg`} alt="Humboldt & Bonpland botanical plate"
-              loading="lazy" className="w-1/3 h-28 object-contain bg-[#fbf6ea] rounded border border-[#d8c9ab]" style={{ filter: 'sepia(0.2) contrast(1.05)' }} />
+              loading="lazy" className="flex-1 min-w-0 h-28 object-contain bg-[#fbf6ea] rounded border border-[#d8c9ab]" style={{ filter: 'sepia(0.2) contrast(1.05)' }} />
           ))}
         </div>
         <div className="text-[8px] italic text-neutral-500 text-center pb-0.5 px-1">Plantes équinoxiales — Humboldt &amp; Bonpland, 1808 · public domain</div>
