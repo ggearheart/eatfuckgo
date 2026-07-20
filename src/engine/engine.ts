@@ -230,3 +230,31 @@ export function muster(s: State, id: string) {
   log(s, `🌿 Defender musters ${c.art} ${c.n} into their stack!`);
 }
 export function concede(s: State, loser: Side) { s.winner = other(loser); s.step = 'over'; }
+
+// ── headless auto-resolution (for AI clashes) ──
+// each side deploys its best-expected card each round; runs to a winner.
+function bestCardIdx(s: State, side: Side): number {
+  let best = -1, bestScore = -Infinity;
+  s.stack[side].forEach((inst, i) => {
+    if (inst.exhausted) return;
+    const p = diceProfile(s, inst, side, null);
+    const score = expHits(p) + (s.lead[side] === inst.card.id ? 0.6 : 0);
+    if (score > bestScore) { bestScore = score; best = i; }
+  });
+  return best;
+}
+export function autoResolve(setup: BattleSetup): 'atk' | 'def' | 'draw' {
+  const s = newBattle(setup);
+  let guard = 0;
+  while (s.step !== 'over' && guard++ < 80) {
+    if (s.step === 'scenario') rollScenario(s);
+    else if (s.step === 'p1' || s.step === 'p2') {
+      const side = s.step === 'p1' ? firstPicker(s) : secondPicker(s);
+      const idx = bestCardIdx(s, side);
+      if (idx < 0) { concede(s, side); break; }
+      selectCard(s, side, idx); commitActive(s);
+    } else if (s.step === 'ready') resolveClash(s);
+    else break;
+  }
+  return (s.winner as 'atk' | 'def' | 'draw') || 'draw';
+}

@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBattle } from './store';
+import { autoResolve } from './engine/engine';
+import { aiMapMove, aiChooseContest } from './game/ai';
 import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
@@ -31,8 +33,11 @@ export default function App() {
   const [playerCount, setPlayerCount] = useState(2);
   const [names, setNames] = useState<string[]>(['', '', '', '']);
   const [facs, setFacs] = useState<Faction[]>(['eat', 'fk', 'eat', 'fk']);
+  const [ai, setAi] = useState<boolean[]>([false, false, false, false]); // which lobby seats are computer
+  const [aiPlayers, setAiPlayers] = useState<Set<PlayerId>>(new Set());
   const [log, setLog] = useState<string[]>([]);
   const [reach, setReach] = useState<number | null>(null); // this turn's 1d6 movement roll
+  const hasAI = aiPlayers.size > 0;
 
   const deckOf = (f: Faction) => (f === 'eat' ? EAT : FK);
 
@@ -50,8 +55,9 @@ export default function App() {
   function startMatch() {
     const players = ALL_PLAYERS.slice(0, playerCount);
     setPlayerNames(names); setPlayerFactions(facs);
+    setAiPlayers(new Set(players.filter((_, i) => ai[i])));
     setMatch(freshMatch(players)); setResult(null); setWarmingNote(null); setReach(null);
-    setLog([`🌱 ${players.map((p) => `${PLAYERS[p].dot} ${PLAYERS[p].name}`).join(' · ')} — the mountain awaits.`]);
+    setLog([`🌱 ${players.map((p, i) => `${PLAYERS[p].dot} ${PLAYERS[p].name}${ai[i] ? ' 🤖' : ''}`).join(' · ')} — the mountain awaits.`]);
     setPhase('map');
   }
   // Titan-style: a neutral hex is mustered (free claim, no clash); a rival's hex is a clash.
@@ -156,6 +162,53 @@ export default function App() {
     setResult(`🌡️ Called at ${degLabel(match.warming)}. ${PLAYERS[w].name} leads with ${n} biome${n === 1 ? '' : 's'} (${heldBy(match, w)} hexes).`);
   }
 
+  // ── computer opponent & headless clash resolution (AI games) ──
+  const rosterIds = (player: PlayerId, biome: string, mode: Faction) => Array.from(new Set(
+    speciesInBiome(biome).filter((s) => speciesCat(s) === mode && match.collection[player].includes(s.id)).map((s) => s.strategy)));
+  function resolveContest(hex: string, atkP: PlayerId, atkC: { mode: Faction; species: string } | null, defP: PlayerId, defC: { mode: Faction; species: string } | null) {
+    const biome = curBiome(match.states, hex);
+    const owners = { ...match.owners };
+    const stratOf = (id: string) => SPECIES_BY_ID[id].strategy;
+    let winner: 'atk' | 'def' | 'draw';
+    if (!atkC) winner = 'def';
+    else if (!defC) winner = 'atk';
+    else winner = autoResolve({
+      fac: { atk: atkC.mode, def: defC.mode }, terrain: biome,
+      atkIds: rosterIds(atkP, biome, atkC.mode), defIds: rosterIds(defP, biome, defC.mode),
+      lead: { atk: stratOf(atkC.species), def: stratOf(defC.species) },
+      species: { atk: atkC.species, def: defC.species },
+      adapt: { atk: match.adapt[atkP][stratOf(atkC.species)] ?? 0, def: match.adapt[defP][stratOf(defC.species)] ?? 0 },
+    });
+    const A = PLAYERS[atkP].name, D = PLAYERS[defP].name, B = BOARDS[biome].name;
+    const entries: string[] = []; let grant: { player: PlayerId; species: string[] } | undefined;
+    if (winner === 'atk') { owners[hex] = atkP; entries.push(`⚔️ ${A} took ${B} from ${D}.`); if (defC) grant = { player: atkP, species: [defC.species] }; }
+    else if (winner === 'def') { entries.push(`🛡️ ${D} held ${B} vs ${A}.`); if (atkC) grant = { player: defP, species: [atkC.species] }; }
+    else entries.push(`🤝 Stalemate at ${B}.`);
+    finishTurn(owners, entries, winner === 'atk', grant, { atkStrat: atkC ? stratOf(atkC.species) : null, defStrat: defC ? stratOf(defC.species) : null, defender: defP });
+  }
+  function humanAttack(mode: Faction, species: string) {
+    const hex = pending!; setPending(null);
+    const defP = match.owners[hex] as PlayerId;
+    resolveContest(hex, match.turn, { mode, species }, defP, aiChooseContest(match, defP, curBiome(match.states, hex)));
+  }
+  function aiClash(hex: string) {
+    const defP = match.owners[hex] as PlayerId, biome = curBiome(match.states, hex);
+    resolveContest(hex, match.turn, aiChooseContest(match, match.turn, biome), defP, aiChooseContest(match, defP, biome));
+  }
+  // the computer takes its map turn
+  useEffect(() => {
+    if (phase !== 'map' || result || pending || !aiPlayers.has(match.turn)) return;
+    const id = setTimeout(() => {
+      if (reach == null) { rollMove(); return; }
+      const mv = aiMapMove(match, match.turn, reach);
+      if (mv.type === 'muster' && mv.hexId) muster(mv.hexId);
+      else if (mv.type === 'clash' && mv.hexId) aiClash(mv.hexId);
+      else passTurn();
+    }, 650);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, match, reach, pending, result, aiPlayers]);
+
   if (phase === 'battle' && state) {
     return (
       <BattleScreen state={state} dispatch={dispatch}
@@ -175,7 +228,7 @@ export default function App() {
         <MapScreen match={match} onPick={pickBiome} onEnd={endMatch} onHome={() => setPhase('home')} note={warmingNote} log={log} reach={reach} onRoll={rollMove} onPass={passTurn} />
         <AnimatePresence>
           {pending && (
-            <ContestSetup match={match} hex={pending}
+            <ContestSetup match={match} hex={pending} vsAI={hasAI} onAttack={humanAttack}
               onLaunch={launchContest} onConcede={concedeContest} onCancel={() => setPending(null)} />
           )}
           {result && (
@@ -248,6 +301,11 @@ export default function App() {
                   </button>
                 ))}
               </div>
+              <button onClick={() => setAi(ai.map((x, j) => (j === i ? !x : x)))}
+                className="mt-1 w-full text-[10px] font-extrabold py-1 rounded border-2 transition-colors"
+                style={ai[i] ? { borderColor: '#1a0e04', background: '#1a0e04', color: '#fff' } : { borderColor: '#d4d4d4', color: '#9ca3af', background: '#fff' }}>
+                {ai[i] ? '🤖 Computer' : '🧑 Human'}
+              </button>
             </div>
           ))}
         </div>
@@ -266,10 +324,9 @@ export default function App() {
           <div className="text-xs">Share a code or link to play someone remotely. Networking to come.</div>
         </button>
 
-        <button disabled className="text-left rounded-2xl border-2 border-dashed border-neutral-300 bg-white/60 text-neutral-500 p-4 cursor-not-allowed relative">
-          <span className="absolute top-3 right-3 text-[9px] font-black uppercase bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded-full">Coming soon</span>
+        <button onClick={startMatch} className="text-left rounded-2xl border-2 border-ink bg-white p-4 shadow-comic hover:translate-y-[-1px] transition-transform">
           <div className="font-extrabold text-lg">🤖 Vs Computer</div>
-          <div className="text-xs">Face an AI ecologist. Reserved until the core mechanics settle.</div>
+          <div className="text-xs text-neutral-600">Toggle any player to <b>🤖 Computer</b> above, then start. The AI musters, clashes at borders, and picks fresh champions.</div>
         </button>
       </div>
 

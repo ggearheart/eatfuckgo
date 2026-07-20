@@ -46,8 +46,8 @@ function SpeciesGrid({ list, chosen, onPick, color, fatigue }: { list: Species[]
   );
 }
 
-export function ContestSetup({ match, hex, onLaunch, onConcede, onCancel }: {
-  match: MatchState; hex: string; onLaunch: (r: ContestResult) => void; onConcede: () => void; onCancel: () => void;
+export function ContestSetup({ match, hex, vsAI, onAttack, onLaunch, onConcede, onCancel }: {
+  match: MatchState; hex: string; vsAI?: boolean; onAttack?: (mode: Faction, species: string) => void; onLaunch: (r: ContestResult) => void; onConcede: () => void; onCancel: () => void;
 }) {
   const biome = curBiome(match.states, hex);
   const b = BOARDS[biome];
@@ -131,9 +131,9 @@ export function ContestSetup({ match, hex, onLaunch, onConcede, onCancel }: {
               <SpeciesGrid list={atkRoster} chosen={atkSpecies} onPick={setAtkSpecies} color={PLAYERS[atk].color} fatigue={(sp) => match.adapt[atk][sp.strategy] ?? 0} />
               <div className="flex gap-2">
                 <button onClick={() => setStep('atkMode')} className="px-3 py-2 rounded-lg border-2 border-ink bg-white text-xs font-bold">← mode</button>
-                <button disabled={!atkSpecies} onClick={() => setStep('handoff')}
+                <button disabled={!atkSpecies} onClick={() => (vsAI ? onAttack!(atkMode, atkSpecies!) : setStep('handoff'))}
                   className="flex-1 py-2.5 rounded-xl border-2 border-ink text-white font-extrabold disabled:opacity-40"
-                  style={{ background: PLAYERS[atk].color }}>Lock in {spById(atkSpecies)?.emoji ?? ''} →</button>
+                  style={{ background: PLAYERS[atk].color }}>{vsAI ? '⚔️ Attack' : 'Lock in'} {spById(atkSpecies)?.emoji ?? ''}{vsAI ? '' : ' →'}</button>
               </div>
             </motion.div>
           )}
