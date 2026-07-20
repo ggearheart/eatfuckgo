@@ -8,8 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BOARDS, BIOME_AFFINITY } from '../engine/data';
 import { curBiome } from '../game/board';
 import { PLAYERS, FACTION, Faction, PlayerId, MatchState } from '../game/humboldt';
-import { speciesInBiome, speciesCat, stratName, SPECIES_BY_ID, Species } from '../game/species';
-import { aiChooseContest } from '../game/ai';
+import { speciesCat, stratName, SPECIES_BY_ID, Species } from '../game/species';
 
 export interface ContestResult {
   atkMode: Faction; atkIds: string[]; atkLead: string; atkSpecies: string;
@@ -18,7 +17,6 @@ export interface ContestResult {
 
 type Step = 'atkMode' | 'atkPick' | 'handoff' | 'defView' | 'defPick';
 
-const rosterFor = (biome: string, mode: Faction) => speciesInBiome(biome).filter((s) => speciesCat(s) === mode);
 const stratsOf = (list: Species[]) => Array.from(new Set(list.map((s) => s.strategy)));
 
 function SpeciesGrid({ list, chosen, onPick, color, fatigue }: { list: Species[]; chosen: string | null; onPick: (id: string) => void; color: string; fatigue: (sp: Species) => number }) {
@@ -47,47 +45,46 @@ function SpeciesGrid({ list, chosen, onPick, color, fatigue }: { list: Species[]
   );
 }
 
-export function ContestSetup({ match, hex, vsAI, aiAttack, onAttack, onLaunch, onConcede, onCancel }: {
+export function ContestSetup({ match, hex, vsAI, aiAttack, atkPool = [], defPool = [], aiDefend, onLaunch, onConcede, onCancel }: {
   match: MatchState; hex: string; vsAI?: boolean; aiAttack?: { mode: Faction; species: string };
-  onAttack?: (mode: Faction, species: string) => void; onLaunch: (r: ContestResult) => void; onConcede: () => void; onCancel: () => void;
+  atkPool?: string[]; defPool?: string[]; aiDefend?: () => { mode: Faction; species: string } | null;
+  onLaunch: (r: ContestResult) => void; onConcede: () => void; onCancel: () => void;
 }) {
   const biome = curBiome(match.states, hex);
   const b = BOARDS[biome];
-  const atk = match.turn, def = (match.owners[hex] ?? match.players.find((p) => p !== atk)!) as PlayerId; // defender = the hex's owner
+  const atk = match.turn, def = (match.owners[hex] ?? match.players.find((p) => p !== atk)!) as PlayerId;
   const aff = BIOME_AFFINITY[biome];
 
-  // a player can only field species whose strategy is in their collection
-  const atkOwned = new Set(match.collection[atk]);
-  const defOwned = new Set(match.collection[def]);
-  const modeAvail = (o: Set<string>, mode: Faction) => rosterFor(biome, mode).some((s) => o.has(s.id));
-  const firstMode = (o: Set<string>, team: Faction): Faction => {
+  // a legion fields the species in its stack (of the chosen mode) — biome fit is scored in-battle
+  const poolRoster = (pool: string[], mode: Faction) => pool.map((id) => SPECIES_BY_ID[id]).filter((s) => s && speciesCat(s) === mode) as Species[];
+  const modeAvail = (pool: string[], mode: Faction) => poolRoster(pool, mode).length > 0;
+  const firstMode = (pool: string[], team: Faction): Faction => {
     const other = team === 'eat' ? 'fk' : 'eat';
-    return modeAvail(o, team) ? team : modeAvail(o, other) ? other : team;
+    return modeAvail(pool, team) ? team : modeAvail(pool, other) ? other : team;
   };
 
-  // defend-vs-AI: the computer has already committed its attack; jump straight to the defender's view
   const [step, setStep] = useState<Step>(aiAttack ? 'defView' : 'atkMode');
-  const [atkMode, setAtkMode] = useState<Faction>(() => (aiAttack ? aiAttack.mode : firstMode(atkOwned, PLAYERS[atk].fac)));
+  const [atkMode, setAtkMode] = useState<Faction>(() => (aiAttack ? aiAttack.mode : firstMode(atkPool, PLAYERS[atk].fac)));
   const [atkSpecies, setAtkSpecies] = useState<string | null>(aiAttack ? aiAttack.species : null);
-  const [defMode, setDefMode] = useState<Faction>(() => firstMode(defOwned, PLAYERS[def].fac));
+  const [defMode, setDefMode] = useState<Faction>(() => firstMode(defPool, PLAYERS[def].fac));
   const [defSpecies, setDefSpecies] = useState<string | null>(null);
   const pickAtkMode = (f: Faction) => { setAtkMode(f); setAtkSpecies(null); };
   const pickDefMode = (f: Faction) => { setDefMode(f); setDefSpecies(null); };
 
-  const atkRoster = rosterFor(biome, atkMode).filter((s) => atkOwned.has(s.id));
-  const defRoster = rosterFor(biome, defMode).filter((s) => defOwned.has(s.id));
-  const spById = (id: string | null) => (id ? speciesInBiome(biome).find((s) => s.id === id) : null);
+  const atkRoster = poolRoster(atkPool, atkMode);
+  const defRoster = poolRoster(defPool, defMode);
+  const spById = (id: string | null) => (id ? SPECIES_BY_ID[id] : null);
 
   const affTag = (
     <span className="text-[11px] text-neutral-500">this biome favors {FACTION[aff].icon} <b>{FACTION[aff].name}</b> (+1 die)</span>
   );
-  const modeButtons = (val: Faction, set: (f: Faction) => void, team: Faction, o: Set<string>) => (
+  const modeButtons = (val: Faction, set: (f: Faction) => void, team: Faction, pool: string[]) => (
     <div className="flex gap-2 justify-center my-2">
       {(['eat', 'fk'] as Faction[]).map((f) => {
-        const avail = modeAvail(o, f);
+        const avail = modeAvail(pool, f);
         return (
           <button key={f} disabled={!avail} onClick={() => set(f)}
-            title={avail ? '' : 'no species of this mode in your collection here'}
+            title={avail ? '' : 'no species of this mode in this legion'}
             className="px-4 py-2 rounded-xl border-2 font-extrabold text-sm disabled:cursor-not-allowed"
             style={val === f
               ? { borderColor: '#1a0e04', background: f === 'eat' ? '#c4561e' : '#7b4fa0', color: '#fff' }
@@ -106,6 +103,16 @@ export function ContestSetup({ match, hex, vsAI, aiAttack, onAttack, onLaunch, o
       defMode, defIds: stratsOf(defRoster), defLead: dSp.strategy, defSpecies: dSp.id,
     });
   }
+  // human attacks the computer → AI picks its defence from the defending legion, then we play it live
+  function attackVsAI() {
+    const aSp = spById(atkSpecies)!;
+    const defC = aiDefend ? aiDefend() : null;
+    const dRoster = defC ? poolRoster(defPool, defC.mode) : [];
+    onLaunch({
+      atkMode, atkIds: stratsOf(atkRoster), atkLead: aSp.strategy, atkSpecies: aSp.id,
+      defMode: defC ? defC.mode : atkMode, defIds: stratsOf(dRoster), defLead: defC ? SPECIES_BY_ID[defC.species].strategy : '', defSpecies: defC ? defC.species : '',
+    });
+  }
 
   return (
     <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onCancel}>
@@ -118,7 +125,7 @@ export function ContestSetup({ match, hex, vsAI, aiAttack, onAttack, onLaunch, o
           {step === 'atkMode' && (
             <motion.div key="am" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="text-center text-sm font-bold mt-2" style={{ color: PLAYERS[atk].color }}>{PLAYERS[atk].dot} {PLAYERS[atk].name} — how will you fight this biome?</div>
-              {modeButtons(atkMode, pickAtkMode, PLAYERS[atk].fac, atkOwned)}
+              {modeButtons(atkMode, pickAtkMode, PLAYERS[atk].fac, atkPool)}
               <div className="text-[11px] text-neutral-500 text-center">★ = your team · greyed = no species in your collection here.</div>
               <button disabled={atkRoster.length === 0} onClick={() => setStep('atkPick')} className="mt-3 w-full py-2.5 rounded-xl border-2 border-ink bg-ink text-white font-extrabold disabled:opacity-40">
                 {atkRoster.length ? `Field your ${FACTION[atkMode].name} species →` : 'No species in your collection for this biome'}
@@ -134,17 +141,7 @@ export function ContestSetup({ match, hex, vsAI, aiAttack, onAttack, onLaunch, o
               <SpeciesGrid list={atkRoster} chosen={atkSpecies} onPick={setAtkSpecies} color={PLAYERS[atk].color} fatigue={(sp) => match.adapt[atk][sp.strategy] ?? 0} />
               <div className="flex gap-2">
                 <button onClick={() => setStep('atkMode')} className="px-3 py-2 rounded-lg border-2 border-ink bg-white text-xs font-bold">← mode</button>
-                <button disabled={!atkSpecies} onClick={() => {
-                  if (!vsAI) { setStep('handoff'); return; }
-                  // human attacks the computer → AI picks its defence, then we play the clash live
-                  const defC = aiChooseContest(match, def, biome);
-                  if (!defC) { onAttack!(atkMode, atkSpecies!); return; } // AI can't field a defence → straight claim
-                  const dRoster = rosterFor(biome, defC.mode).filter((s) => defOwned.has(s.id));
-                  onLaunch({
-                    atkMode, atkIds: stratsOf(atkRoster), atkLead: spById(atkSpecies)!.strategy, atkSpecies: atkSpecies!,
-                    defMode: defC.mode, defIds: stratsOf(dRoster), defLead: SPECIES_BY_ID[defC.species].strategy, defSpecies: defC.species,
-                  });
-                }}
+                <button disabled={!atkSpecies} onClick={() => (vsAI ? attackVsAI() : setStep('handoff'))}
                   className="flex-1 py-2.5 rounded-xl border-2 border-ink text-white font-extrabold disabled:opacity-40"
                   style={{ background: PLAYERS[atk].color }}>{vsAI ? '⚔️ Attack' : 'Lock in'} {spById(atkSpecies)?.emoji ?? ''}{vsAI ? '' : ' →'}</button>
               </div>
@@ -170,7 +167,7 @@ export function ContestSetup({ match, hex, vsAI, aiAttack, onAttack, onLaunch, o
                 <div className="text-[10px] text-neutral-500">fielding: {atkRoster.map((s) => s.emoji).join(' ')}</div>
               </div>
               <div className="text-center text-sm font-bold mt-3" style={{ color: PLAYERS[def].color }}>{PLAYERS[def].dot} {PLAYERS[def].name} — answer or concede?</div>
-              {modeButtons(defMode, pickDefMode, PLAYERS[def].fac, defOwned)}
+              {modeButtons(defMode, pickDefMode, PLAYERS[def].fac, defPool)}
               <div className="flex gap-2 mt-1">
                 <button onClick={onConcede} className="px-3 py-2.5 rounded-xl border-2 border-ink bg-white text-xs font-extrabold text-neutral-600">🏳️ Concede hex</button>
                 <button onClick={() => setStep('defPick')} className="flex-1 py-2.5 rounded-xl border-2 border-ink text-white font-extrabold" style={{ background: PLAYERS[def].color }}>Field {FACTION[defMode].name} species →</button>

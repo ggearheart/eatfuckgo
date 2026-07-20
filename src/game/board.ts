@@ -113,6 +113,27 @@ export function reachableFor(owners: Record<string, PlayerId | null>, player: Pl
   return out;
 }
 
+// ── Titan-style legion movement ──
+// Endpoints a single legion can reach in `roll` steps from `start`. A legion may
+// NOT traverse through an occupied hex (blocked by other legions), but it may
+// LAND on one (that's how a clash is initiated). Ally-occupied endpoints are
+// left in — the caller filters those out (one legion per hex).
+export function legionMoves(start: string, roll: number, occupied: Set<string>): Set<string> {
+  const out = new Set<string>();
+  if (!roll || roll < 1) return out;
+  const dist: Record<string, number> = { [start]: 0 };
+  const q: string[] = [start];
+  let head = 0;
+  while (head < q.length) {
+    const id = q[head++];
+    if (dist[id] >= roll) continue;
+    if (id !== start && occupied.has(id)) continue; // can't pass through another legion
+    neighbors(id).forEach((n) => { if (dist[n] === undefined) { dist[n] = dist[id] + 1; q.push(n); } });
+  }
+  Object.keys(dist).forEach((id) => { if (id !== start && dist[id] <= roll) out.add(id); });
+  return out;
+}
+
 // A biome is controlled only when one player holds every (current) hex of it.
 export function biomeOwner(owners: Record<string, PlayerId | null>, code: string, states?: Record<string, string>): PlayerId | null {
   const hs = hexesOfBiome(code, states);

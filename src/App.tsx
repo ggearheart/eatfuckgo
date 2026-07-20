@@ -3,17 +3,19 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBattle } from './store';
 import { autoResolve } from './engine/engine';
-import { aiMapMove, aiChooseContest } from './game/ai';
+import { aiMapMove } from './game/ai';
 import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
 import type { Side } from './engine/data';
-import { freshMatch, nextPlayer, heldBy, biomesControlledBy, matchWinner, pluralityWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, setPlayerEmblems, FACTION, PLAYERS, ALL_PLAYERS, ALL_BIOMES, ADAPT_CAP, MatchState, Faction, BurstKind, PlayerId } from './game/humboldt';
+import { freshMatch, nextPlayer, heldBy, matchWinner, pluralityWinner, livingPlayers, legionsOf, legionAt, occupiedHexes, nextLegionSlot, STACK_CAP, setPlayerNames, setPlayerFactions, setPlayerEmblems, FACTION, PLAYERS, ALL_PLAYERS, ALL_BIOMES, ADAPT_CAP, MatchState, Legion, Faction, BurstKind, PlayerId } from './game/humboldt';
 import { BurstBadge, BURST_META } from './components/LegionBurst';
-import { curBiome, hexesOfBiome, tickWarming, degLabel, MAX_C } from './game/board';
+import { curBiome, hexesOfBiome, tickWarming, degLabel, MAX_C, legionMoves } from './game/board';
 import { speciesInBiome, speciesCat, recruitOptions, SPECIES_BY_ID } from './game/species';
 import { ContestSetup, ContestResult } from './components/ContestSetup';
 import { MusterScreen } from './components/MusterScreen';
+import { LegionArrange } from './components/LegionArrange';
+import { SplitLegion } from './components/SplitLegion';
 import { MusterGuide, MusterGuidePage } from './components/MusterGuide';
 import { HandPanel } from './components/HandPanel';
 
@@ -31,10 +33,15 @@ export default function App() {
   const [state, dispatch] = useBattle();
   const [phase, setPhase] = useState<Phase>('home');
   const [match, setMatch] = useState<MatchState>(freshMatch);
-  const [pending, setPending] = useState<string | null>(null); // hex id awaiting clash setup
-  const [defense, setDefense] = useState<{ hex: string; atk: { mode: Faction; species: string } } | null>(null); // AI attacks a human → human defends
+  const [pending, setPending] = useState<{ hex: string; atkLegion: string; defLegion: string } | null>(null); // legion clash awaiting setup
+  const [defense, setDefense] = useState<{ hex: string; atk: { mode: Faction; species: string }; atkLegion: string; defLegion: string } | null>(null); // reactive defense / AI attacks human
   const [aiBattleSides, setAiBattleSides] = useState<Side[]>([]); // which battle sides the computer plays
-  const [mustering, setMustering] = useState<string | null>(null); // hex id awaiting recruit choice
+  const [clashCtx, setClashCtx] = useState<{ hex: string; atkLegion: string; defLegion: string } | null>(null); // legions in the active battle
+  const [mustering, setMustering] = useState<{ legionId: string; hex: string } | null>(null); // legion recruiting after a move
+  const [selLegion, setSelLegion] = useState<string | null>(null); // legion selected to move
+  const [splitting, setSplitting] = useState<string | null>(null); // legion id being split (opens popup)
+  const [arranged, setArranged] = useState<Set<PlayerId>>(new Set()); // players who've arranged their opening legions
+  const [defenseReq, setDefenseReq] = useState<{ hex: string; atkLegion: string; owner: PlayerId } | null>(null); // human defender prompt
   const [activeHex, setActiveHex] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [warmingNote, setWarmingNote] = useState<string | null>(null);
@@ -67,229 +74,348 @@ export default function App() {
     const players = ALL_PLAYERS.slice(0, playerCount);
     setPlayerNames(names); setPlayerFactions(facs); setPlayerEmblems(emblems);
     setAiPlayers(new Set(players.filter((_, i) => ai[i])));
-    setMatch(freshMatch(players)); setResult(null); setWarmingNote(null); setReach(null); setMustering(null); setPending(null); setDefense(null); setAiBattleSides([]);
-    setLog([`🌱 ${players.map((p, i) => `${PLAYERS[p].dot} ${PLAYERS[p].name}${ai[i] ? ' 🤖' : ''}`).join(' · ')} — the mountain awaits.`]);
+    setMatch(freshMatch(players)); setResult(null); setWarmingNote(null); setReach(null); setSelLegion(null);
+    setMustering(null); setPending(null); setDefense(null); setDefenseReq(null); setSplitting(null); setAiBattleSides([]); setClashCtx(null);
+    setArranged(new Set(players.filter((_, i) => ai[i]))); // AI seats auto-arrange
+    setLog([`🎆 ${players.map((p, i) => `${PLAYERS[p].dot} ${PLAYERS[p].name}${ai[i] ? ' 🤖' : ''}`).join(' · ')} — legions muster.`]);
     setPhase('map');
   }
-  // Titan-style: a neutral hex is mustered (free claim, no clash); a rival's hex is a clash.
-  function pickBiome(id: string) {
+
+  // helpers over the current match
+  const stratOf = (id: string) => SPECIES_BY_ID[id]?.strategy;
+  const legionStrats = (l: Legion, mode: Faction) =>
+    Array.from(new Set(l.species.map((id) => SPECIES_BY_ID[id]).filter((s) => s && speciesCat(s) === mode).map((s) => s!.strategy)));
+  const legionContest = (l: Legion): { mode: Faction; species: string } | null => {
+    const avail = (mode: Faction) => l.species.map((id) => SPECIES_BY_ID[id]).filter((s) => s && speciesCat(s) === mode) as any[];
+    const order: Faction[] = l.team === 'eat' ? ['eat', 'fk'] : ['fk', 'eat'];
+    const mode = order.find((f) => avail(f).length); if (!mode) return null;
+    const list = avail(mode).sort((a, b) => (match.adapt[l.player][a.strategy] || 0) - (match.adapt[l.player][b.strategy] || 0));
+    return { mode, species: list[0].id };
+  };
+  const occExcept = (hex: string) => { const s = occupiedHexes(match); s.delete(hex); return s; };
+  function aiPickRecruit(l: Legion): string | null {
+    if (l.species.length >= STACK_CAP) return null;
+    const biome = curBiome(match.states, l.hex);
+    const opts = recruitOptions(l.species, biome, l.team).filter((o) => o.unlocked && !o.owned);
+    return opts.length ? opts.sort((a, b) => b.tier - a.tier)[0].species.id : null;
+  }
+
+  function rollMove() { if (reach == null) setReach(1 + Math.floor(Math.random() * 6)); }
+
+  // click a hex: select your legion there, or (with one selected) move/act onto it
+  function pickHex(hexId: string) {
     setWarmingNote(null);
-    if (match.owners[id] == null) muster(id);
-    else setPending(id);
+    const here = legionAt(match, hexId);
+    if (here && here.player === match.turn) { if (!here.moved) setSelLegion(here.id); return; }
+    if (selLegion == null || reach == null) return;
+    const l = match.legions[selLegion]; if (!l || l.moved) return;
+    if (!legionMoves(l.hex, reach, occExcept(l.hex)).has(hexId)) return;
+    const tgt = legionAt(match, hexId);
+    if (tgt) { if (tgt.player !== match.turn) beginLegionClash(l.id, tgt.id, hexId); return; } // ally-occupied = illegal
+    const owner = match.owners[hexId];
+    if (owner && owner !== match.turn) { requestDefense(l.id, hexId, owner); return; } // enemy-claimed empty → reactive defense
+    moveAndRecruit(l.id, hexId); // free ground → claim + recruit
   }
-  function muster(id: string) {
-    // human gets the interactive recruit screen; the AI auto-recruits
-    if (aiPlayers.has(match.turn)) doMuster(id, aiRecruit(match.turn, curBiome(match.states, id)));
-    else setMustering(id);
+
+  function applyMove(m: MatchState, legionId: string, hexId: string, recruitId: string | null): MatchState {
+    const l = m.legions[legionId];
+    const owners = { ...m.owners }; owners[hexId] = l.player;
+    const species = recruitId && l.species.length < STACK_CAP && !l.species.includes(recruitId) ? [...l.species, recruitId] : l.species;
+    return { ...m, owners, legions: { ...m.legions, [legionId]: { ...l, hex: hexId, moved: true, species } } };
   }
-  function aiRecruit(player: PlayerId, biome: string): string | null {
-    const opts = recruitOptions(match.collection[player], biome, PLAYERS[player].fac).filter((o) => o.unlocked && !o.owned);
-    return opts.length ? opts.sort((a, b) => b.tier - a.tier)[0].species.id : null; // grab the best unlocked recruit
+  function moveAndRecruit(legionId: string, hexId: string) {
+    const l = match.legions[legionId];
+    const isAI = aiPlayers.has(l.player);
+    const recruitId = isAI ? aiPickRecruit({ ...l, hex: hexId }) : null;
+    const b = curBiome(match.states, hexId), sp = recruitId ? SPECIES_BY_ID[recruitId] : null;
+    setMatch(applyMove(match, legionId, hexId, recruitId));
+    setSelLegion(null);
+    setLog((x) => [...x, `➡️ ${PLAYERS[l.player].name}'s legion ${l.n} advanced to ${BOARDS[b].name}${sp ? ` and recruited ${sp.emoji} ${sp.name}` : ''}.`]);
+    if (!isAI && l.species.length < STACK_CAP) setMustering({ legionId, hex: hexId }); // interactive recruit
   }
-  function doMuster(id: string, recruitId: string | null) {
-    const owners = { ...match.owners }; owners[id] = match.turn;
-    const biome = curBiome(match.states, id);
-    const sp = recruitId ? SPECIES_BY_ID[recruitId] : null;
-    const entries = [`🌱 ${PLAYERS[match.turn].name} settled ${BOARDS[biome].name}${sp ? ` and recruited ${sp.emoji} ${sp.name}` : ''}.`];
-    finishTurn(owners, entries, false, recruitId ? { player: match.turn, species: [recruitId] } : undefined);
+  // human recruit choice from the muster screen
+  function doRecruit(legionId: string, recruitId: string | null) {
+    setMustering(null);
+    if (!recruitId) return;
+    setMatch((m) => { const l = m.legions[legionId]; if (!l || l.species.length >= STACK_CAP || l.species.includes(recruitId)) return m; return { ...m, legions: { ...m.legions, [legionId]: { ...l, species: [...l.species, recruitId] } } }; });
+    const sp = SPECIES_BY_ID[recruitId];
+    setLog((x) => [...x, `🧬 ${PLAYERS[match.legions[legionId].player].name}'s legion recruited ${sp.emoji} ${sp.name}.`]);
   }
-  function rollMove() { setReach(1 + Math.floor(Math.random() * 6)); }
-  function passTurn() { finishTurn({ ...match.owners }, [`⤳ ${PLAYERS[match.turn].name} has no move — passes.`], false); }
-  // finish a turn: warming (per claim), migration, grow/prune collections, adaptation, victory, log
-  function finishTurn(owners: Record<string, any>, entries: string[], claimed: boolean, grant?: { player: PlayerId; species: string[] }, combat?: { atkStrat: string | null; defStrat: string | null; defender: PlayerId }) {
-    const tick = tickWarming(match, claimed);
+
+  // ── clash: one legion moves onto another ──
+  function beginLegionClash(atkLegionId: string, defLegionId: string, hexId: string) {
+    setClashCtx({ hex: hexId, atkLegion: atkLegionId, defLegion: defLegionId });
+    if (aiPlayers.has(match.turn)) {
+      const atkC = legionContest(match.legions[atkLegionId]);
+      const defP = match.legions[defLegionId].player;
+      if (aiPlayers.has(defP)) { resolveAuto(atkLegionId, defLegionId, hexId, atkC, legionContest(match.legions[defLegionId])); return; } // AI v AI headless
+      setDefense({ hex: hexId, atk: atkC!, atkLegion: atkLegionId, defLegion: defLegionId }); // AI attacks human → they answer
+      return;
+    }
+    setPending({ hex: hexId, atkLegion: atkLegionId, defLegion: defLegionId }); // human attacker picks mode+champion
+  }
+
+  // reactive defense: attacker moves onto an enemy-CLAIMED but empty hex
+  function requestDefense(atkLegionId: string, hexId: string, owner: PlayerId) {
+    if (aiPlayers.has(owner)) { // AI decides: bring the nearest legion within a rolled range, else cede
+      const roll = 1 + Math.floor(Math.random() * 6);
+      const cand = legionsOf(match, owner).find((l) => !l.moved && legionMoves(l.hex, roll, occExcept(l.hex)).has(hexId));
+      if (cand) { const m2 = applyMove(match, cand.id, hexId, null); setMatch(m2); setLog((x) => [...x, `🛡️ ${PLAYERS[owner].name} rolled ${roll} — legion ${cand.n} rushes to defend ${BOARDS[curBiome(match.states, hexId)].name}.`]); beginLegionClashOn(m2, atkLegionId, cand.id, hexId); return; }
+      cedeHex(atkLegionId, hexId, owner); return;
+    }
+    setDefenseReq({ hex: hexId, atkLegion: atkLegionId, owner }); // human defender prompt
+  }
+  function cedeHex(atkLegionId: string, hexId: string, owner: PlayerId) {
+    setDefenseReq(null);
+    setLog((x) => [...x, `🏳️ ${PLAYERS[owner].name} cedes ${BOARDS[curBiome(match.states, hexId)].name} — undefended.`]);
+    moveAndRecruit(atkLegionId, hexId);
+  }
+  function humanDefend(defend: boolean) {
+    const req = defenseReq!; setDefenseReq(null);
+    if (!defend) { cedeHex(req.atkLegion, req.hex, req.owner); return; }
+    const roll = 1 + Math.floor(Math.random() * 6);
+    const cand = legionsOf(match, req.owner).find((l) => !l.moved && legionMoves(l.hex, roll, occExcept(l.hex)).has(req.hex));
+    if (!cand) { setLog((x) => [...x, `🎲 ${PLAYERS[req.owner].name} rolled ${roll} — no legion in range. ${BOARDS[curBiome(match.states, req.hex)].name} falls.`]); moveAndRecruit(req.atkLegion, req.hex); return; }
+    const m2 = applyMove(match, cand.id, req.hex, null); setMatch(m2);
+    setLog((x) => [...x, `🛡️ ${PLAYERS[req.owner].name} rolled ${roll} — legion ${cand.n} moves to defend.`]);
+    beginLegionClashOn(m2, req.atkLegion, cand.id, req.hex);
+  }
+  // clash where the defender legion was just repositioned (uses the fresh match m)
+  function beginLegionClashOn(m: MatchState, atkLegionId: string, defLegionId: string, hexId: string) {
+    setClashCtx({ hex: hexId, atkLegion: atkLegionId, defLegion: defLegionId });
+    if (aiPlayers.has(m.turn)) { setDefense({ hex: hexId, atk: legionContest(m.legions[atkLegionId])!, atkLegion: atkLegionId, defLegion: defLegionId }); return; }
+    setPending({ hex: hexId, atkLegion: atkLegionId, defLegion: defLegionId });
+  }
+
+  // build the interactive battle from the two legions' chosen champions
+  function launchBattle(atkC: { mode: Faction; species: string }, defC: { mode: Faction; species: string } | null) {
+    const ctx = clashCtx!; const atkL = match.legions[ctx.atkLegion], defL = match.legions[ctx.defLegion];
+    if (!defC) { resolveAuto(ctx.atkLegion, ctx.defLegion, ctx.hex, atkC, null); return; }
+    dispatch({ t: 'new', setup: {
+      fac: { atk: atkC.mode, def: defC.mode }, terrain: curBiome(match.states, ctx.hex),
+      atkIds: legionStrats(atkL, atkC.mode), defIds: legionStrats(defL, defC.mode),
+      lead: { atk: stratOf(atkC.species)!, def: stratOf(defC.species)! }, species: { atk: atkC.species, def: defC.species },
+      adapt: { atk: match.adapt[atkL.player][stratOf(atkC.species)!] ?? 0, def: match.adapt[defL.player][stratOf(defC.species)!] ?? 0 },
+    } });
+    const sides: Side[] = []; if (aiPlayers.has(atkL.player)) sides.push('atk'); if (aiPlayers.has(defL.player)) sides.push('def');
+    setAiBattleSides(sides); setActiveHex(ctx.hex); setPending(null); setDefense(null); setPhase('battle');
+  }
+  // attacker (human) locked in a champion via ContestSetup
+  function launchContest(r: ContestResult) {
+    launchBattle({ mode: r.atkMode, species: r.atkSpecies }, r.defSpecies ? { mode: r.defMode, species: r.defSpecies } : null);
+  }
+
+  // ── apply a clash outcome to the legions (shared by interactive + auto) ──
+  function applyClashOutcome(m: MatchState, ctx: { hex: string; atkLegion: string; defLegion: string }, winner: 'atk' | 'def' | 'draw', absorbForAtk: string | null, absorbForDef: string | null, leadAtk: string | null, leadDef: string | null): { m: MatchState; entries: string[] } {
+    const atkL = m.legions[ctx.atkLegion], defL = m.legions[ctx.defLegion];
+    const legions = { ...m.legions }; const owners = { ...m.owners }; const entries: string[] = [];
+    const B = BOARDS[curBiome(m.states, ctx.hex)].name;
+    const grow = (l: Legion, sp: string | null) => (sp && l.species.length < STACK_CAP && !l.species.includes(sp) ? [...l.species, sp] : l.species);
+    if (winner === 'atk') {
+      delete legions[ctx.defLegion];
+      legions[ctx.atkLegion] = { ...atkL, hex: ctx.hex, moved: true, species: grow(atkL, absorbForAtk) };
+      owners[ctx.hex] = atkL.player;
+      entries.push(`⚔️ ${PLAYERS[atkL.player].name}'s legion ${atkL.n} destroyed ${PLAYERS[defL.player].name}'s legion ${defL.n} at ${B}.`);
+    } else if (winner === 'def') {
+      delete legions[ctx.atkLegion];
+      legions[ctx.defLegion] = { ...defL, species: grow(defL, absorbForDef) };
+      entries.push(`🛡️ ${PLAYERS[defL.player].name}'s legion ${defL.n} held ${B}, wiping legion ${atkL.n}.`);
+    } else {
+      delete legions[ctx.atkLegion]; delete legions[ctx.defLegion];
+      entries.push(`💥 Both legions collapsed at ${B}.`);
+    }
+    // Red Queen adaptation (champions used)
+    const adapt = {} as Record<PlayerId, Record<string, number>>;
+    m.players.forEach((p) => { adapt[p] = { ...m.adapt[p] }; });
+    Object.keys(adapt[atkL.player]).forEach((sid) => { if (sid !== leadAtk) adapt[atkL.player][sid] = Math.max(0, adapt[atkL.player][sid] - 1); });
+    if (leadAtk) adapt[atkL.player][leadAtk] = Math.min(ADAPT_CAP, (adapt[atkL.player][leadAtk] || 0) + 1);
+    if (leadDef) adapt[defL.player][leadDef] = Math.min(ADAPT_CAP, (adapt[defL.player][leadDef] || 0) + 1);
+    let next = { ...m, owners, legions, adapt };
+    const w = applyWarming(next, winner === 'atk'); next = w.m; entries.push(...w.notes);
+    return { m: next, entries };
+  }
+  // headless outcome (AI-v-AI, or a side can't field a champion)
+  function resolveAuto(atkLegionId: string, defLegionId: string, hexId: string, atkC: { mode: Faction; species: string } | null, defC: { mode: Faction; species: string } | null) {
+    const ctx = { hex: hexId, atkLegion: atkLegionId, defLegion: defLegionId };
+    const atkL = match.legions[atkLegionId], defL = match.legions[defLegionId];
+    let winner: 'atk' | 'def' | 'draw';
+    if (!atkC) winner = 'def'; else if (!defC) winner = 'atk';
+    else winner = autoResolve({
+      fac: { atk: atkC.mode, def: defC.mode }, terrain: curBiome(match.states, hexId),
+      atkIds: legionStrats(atkL, atkC.mode), defIds: legionStrats(defL, defC.mode),
+      lead: { atk: stratOf(atkC.species)!, def: stratOf(defC.species)! }, species: { atk: atkC.species, def: defC.species },
+      adapt: { atk: match.adapt[atkL.player][stratOf(atkC.species)!] ?? 0, def: match.adapt[defL.player][stratOf(defC.species)!] ?? 0 },
+    });
+    const { m, entries } = applyClashOutcome(match, ctx, winner, defC?.species ?? null, atkC?.species ?? null, atkC ? stratOf(atkC.species)! : null, defC ? stratOf(defC.species)! : null);
+    setClashCtx(null); commit(m, entries);
+  }
+  // interactive battle finished → apply, stay on the same turn
+  function claimAndReturn() {
+    const ctx = clashCtx; if (!ctx || !state) { setPhase('map'); return; }
+    const { m, entries } = applyClashOutcome(match, ctx, (state.winner as 'atk' | 'def' | 'draw') || 'draw', state.species.def, state.species.atk, state.lead.atk, state.lead.def);
+    setClashCtx(null); setActiveHex(null); setAiBattleSides([]); setSelLegion(null); setPhase('map');
+    commit(m, entries);
+  }
+
+  // ── warming / turn plumbing ──
+  function applyWarming(m: MatchState, claimed: boolean): { m: MatchState; notes: string[] } {
+    const tick = tickWarming(m, claimed);
+    const owners = { ...m.owners }; const notes: string[] = [];
     const displaced = tick.changed.filter((c) => owners[c.id]).length;
-    tick.changed.forEach((c) => { if (owners[c.id]) owners[c.id] = null; }); // migration teeth
-    if (tick.changed.length) entries.push(`🔥 ${degLabel(tick.warming)}: ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''}` : ''}.`);
-    // collections: settling adds a biome's species; a clash win absorbs the defeated one
-    const collection = {} as Record<PlayerId, string[]>;
-    match.players.forEach((p) => { collection[p] = [...match.collection[p]]; });
-    if (grant) grant.species.forEach((id) => { if (id && !collection[grant.player].includes(id)) collection[grant.player].push(id); });
-    const extinct = ALL_BIOMES.filter((c) => hexesOfBiome(c, match.states).length > 0 && hexesOfBiome(c, tick.states).length === 0);
+    tick.changed.forEach((c) => { if (owners[c.id]) owners[c.id] = null; });
+    const extinct = ALL_BIOMES.filter((c) => hexesOfBiome(c, m.states).length > 0 && hexesOfBiome(c, tick.states).length === 0);
+    let legions = m.legions;
     if (extinct.length) {
       const dead = new Set(extinct.flatMap((c) => speciesInBiome(c).map((s) => s.id)));
-      match.players.forEach((p) => { collection[p] = collection[p].filter((id) => !dead.has(id)); });
-      entries.push(`🦴 ${extinct.map((c) => BOARDS[c].name).join(', ')} vanished — ${dead.size} species went extinct.`);
+      legions = {};
+      Object.values(m.legions).forEach((l) => {
+        const sp = l.species.filter((id) => !dead.has(id));
+        if (sp.length === 0) { notes.push(`🦴 ${PLAYERS[l.player].name}'s legion ${l.n} died out.`); return; }
+        legions[l.id] = { ...l, species: sp };
+      });
+      notes.push(`🦴 ${extinct.map((c) => BOARDS[c].name).join(', ')} vanished.`);
     }
-    // Red Queen adaptation
-    const adapt = {} as Record<PlayerId, Record<string, number>>;
-    match.players.forEach((p) => { adapt[p] = { ...match.adapt[p] }; });
-    const atkP = match.turn;
-    Object.keys(adapt[atkP]).forEach((sid) => { if (sid !== combat?.atkStrat) adapt[atkP][sid] = Math.max(0, adapt[atkP][sid] - 1); });
-    if (combat?.atkStrat) adapt[atkP][combat.atkStrat] = Math.min(ADAPT_CAP, (adapt[atkP][combat.atkStrat] || 0) + 1);
-    if (combat?.defStrat && combat.defender) adapt[combat.defender][combat.defStrat] = Math.min(ADAPT_CAP, (adapt[combat.defender][combat.defStrat] || 0) + 1);
-    const next = { ...match, owners, states: tick.states, warming: tick.warming, turns: match.turns + 1, claims: tick.claims, turn: nextPlayer(match.players, match.turn), collection, adapt };
-    setMatch(next);
-    setReach(null);
-    setWarmingNote(tick.changed.length
-      ? `🔥 The planet warmed to ${degLabel(tick.warming)} — ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''} (now neutral)` : ''}.`
-      : null);
-    // victory: early majority instant win, else plurality once the planet maxes out
+    if (tick.changed.length) notes.push(`🔥 ${degLabel(tick.warming)}: ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, ${displaced} displaced` : ''}.`);
+    return { m: { ...m, owners, states: tick.states, warming: tick.warming, claims: tick.claims, legions }, notes };
+  }
+  // set the match + check victory (does NOT advance the turn)
+  function commit(next: MatchState, entries: string[]) {
+    setMatch(next); setReach(null); setSelLegion(null); setWarmingNote(null);
     const won = matchWinner(next);
-    if (won) {
-      const n = biomesControlledBy(next, won);
-      entries.push(`🏆 ${PLAYERS[won].name} controls a majority (${n} biomes) — victory!`);
-      setResult(`🏆 ${PLAYERS[won].name} wins — a majority of the ${livingBiomes(next).length} living biomes (${n}).`);
-    } else if (next.warming >= MAX_C) {
-      const w = pluralityWinner(next), n = biomesControlledBy(next, w);
-      entries.push(`🏆 Planet maxed at ${degLabel(next.warming)} — ${PLAYERS[w].name} leads with ${n} biome${n === 1 ? '' : 's'}!`);
-      setResult(`🏆 The planet reached ${degLabel(next.warming)}. ${PLAYERS[w].name} wins with the most biomes (${n}).`);
-    }
+    if (won) { entries.push(`🏆 ${PLAYERS[won].name} is the last legion standing — victory!`); setResult(`🏆 ${PLAYERS[won].name} wins — all rivals eliminated.`); }
+    else if (next.warming >= MAX_C) { const w = pluralityWinner(next); entries.push(`🏆 Planet maxed at ${degLabel(next.warming)} — ${PLAYERS[w].name} leads with ${legionsOf(next, w).length} legions.`); setResult(`🏆 The planet reached ${degLabel(next.warming)}. ${PLAYERS[w].name} wins with the most legions.`); }
     if (entries.length) setLog((l) => [...l, ...entries]);
   }
-
-  function launchContest(r: ContestResult, hexArg?: string) {
-    const hex = hexArg ?? pending!; setPending(null); setDefense(null); setActiveHex(hex);
-    const atk = match.turn, def = match.owners[hex] as PlayerId;
-    dispatch({ t: 'new', setup: {
-      fac: { atk: r.atkMode, def: r.defMode }, terrain: curBiome(match.states, hex),
-      atkIds: r.atkIds, defIds: r.defIds,
-      lead: { atk: r.atkLead, def: r.defLead }, species: { atk: r.atkSpecies, def: r.defSpecies },
-      adapt: { atk: match.adapt[atk][r.atkLead] ?? 0, def: match.adapt[def][r.defLead] ?? 0 },
-    } });
-    // the computer plays whichever side(s) it holds; the human plays theirs live
-    const sides: Side[] = [];
-    if (aiPlayers.has(atk)) sides.push('atk');
-    if (aiPlayers.has(def)) sides.push('def');
-    setAiBattleSides(sides);
-    setPhase('battle');
-  }
-  function concedeContest() {
-    const hex = pending!; setPending(null);
-    const owner = match.owners[hex] as PlayerId;
-    const owners = { ...match.owners }; owners[hex] = match.turn;
-    const biome = curBiome(match.states, hex);
-    const settled = speciesInBiome(biome).filter((s) => speciesCat(s) === PLAYERS[match.turn].fac).map((s) => s.id);
-    finishTurn(owners, [`🏳️ ${PLAYERS[owner].name} conceded ${BOARDS[biome].name} to ${PLAYERS[match.turn].name}.`], true, { player: match.turn, species: settled });
-    setPhase('map');
-  }
-  function claimAndReturn() {
-    const owners = { ...match.owners };
-    const atk = match.turn;
-    const def = (activeHex ? match.owners[activeHex] : match.players.find((p) => p !== atk)) as PlayerId;
-    const atkName = PLAYERS[atk].name, defName = PLAYERS[def].name;
-    const biomeNm = activeHex ? BOARDS[curBiome(match.states, activeHex)].name : 'the field';
-    const entries: string[] = [];
-    let grant: { player: PlayerId; species: string[] } | undefined;
-    const absorb = (p: PlayerId, sp: string | null) => { if (sp) { grant = { player: p, species: [sp] }; entries.push(`🧬 ${PLAYERS[p].name} absorbed ${SPECIES_BY_ID[sp]?.emoji} ${SPECIES_BY_ID[sp]?.name}.`); } };
-    if (state?.winner && activeHex) {
-      if (state.winner === 'atk') { owners[activeHex] = atk; entries.push(`⚔️ ${atkName} won ${biomeNm}.`); absorb(atk, state.species.def); }
-      else if (state.winner === 'def') { owners[activeHex] = def; entries.push(`🛡️ ${defName} held ${biomeNm}.`); absorb(def, state.species.atk); }
-      else entries.push(`🤝 Stalemate at ${biomeNm}.`);
-    }
-    finishTurn(owners, entries, state?.winner === 'atk', grant, { atkStrat: state?.lead.atk ?? null, defStrat: state?.lead.def ?? null, defender: def });
-    setActiveHex(null); setAiBattleSides([]); setPhase('map');
+  function endTurn() {
+    setSelLegion(null);
+    const legions: Record<string, Legion> = {};
+    Object.values(match.legions).forEach((l) => { legions[l.id] = { ...l, moved: false }; });
+    // advance to the next player who still has a legion
+    let nx = nextPlayer(match.players, match.turn); let guard = 0;
+    while (legionsOf({ ...match, legions }, nx).length === 0 && guard++ < 8) nx = nextPlayer(match.players, nx);
+    const next = { ...match, legions, turns: match.turns + 1, turn: nx };
+    commit(next, [`↻ ${PLAYERS[match.turn].name} ends their turn.`]);
   }
   function endMatch() {
-    const w = pluralityWinner(match), n = biomesControlledBy(match, w);
-    setResult(`🌡️ Called at ${degLabel(match.warming)}. ${PLAYERS[w].name} leads with ${n} biome${n === 1 ? '' : 's'} (${heldBy(match, w)} hexes).`);
+    const w = pluralityWinner(match);
+    setResult(`🌡️ Called at ${degLabel(match.warming)}. ${PLAYERS[w].name} leads with ${legionsOf(match, w).length} legion${legionsOf(match, w).length === 1 ? '' : 's'} (${heldBy(match, w)} hexes).`);
   }
 
-  // ── computer opponent & headless clash resolution (AI games) ──
-  const rosterIds = (player: PlayerId, biome: string, mode: Faction) => Array.from(new Set(
-    speciesInBiome(biome).filter((s) => speciesCat(s) === mode && match.collection[player].includes(s.id)).map((s) => s.strategy)));
-  function resolveContest(hex: string, atkP: PlayerId, atkC: { mode: Faction; species: string } | null, defP: PlayerId, defC: { mode: Faction; species: string } | null) {
-    const biome = curBiome(match.states, hex);
-    const owners = { ...match.owners };
-    const stratOf = (id: string) => SPECIES_BY_ID[id].strategy;
-    let winner: 'atk' | 'def' | 'draw';
-    if (!atkC) winner = 'def';
-    else if (!defC) winner = 'atk';
-    else winner = autoResolve({
-      fac: { atk: atkC.mode, def: defC.mode }, terrain: biome,
-      atkIds: rosterIds(atkP, biome, atkC.mode), defIds: rosterIds(defP, biome, defC.mode),
-      lead: { atk: stratOf(atkC.species), def: stratOf(defC.species) },
-      species: { atk: atkC.species, def: defC.species },
-      adapt: { atk: match.adapt[atkP][stratOf(atkC.species)] ?? 0, def: match.adapt[defP][stratOf(defC.species)] ?? 0 },
-    });
-    const A = PLAYERS[atkP].name, D = PLAYERS[defP].name, B = BOARDS[biome].name;
-    const entries: string[] = []; let grant: { player: PlayerId; species: string[] } | undefined;
-    if (winner === 'atk') { owners[hex] = atkP; entries.push(`⚔️ ${A} took ${B} from ${D}.`); if (defC) grant = { player: atkP, species: [defC.species] }; }
-    else if (winner === 'def') { entries.push(`🛡️ ${D} held ${B} vs ${A}.`); if (atkC) grant = { player: defP, species: [atkC.species] }; }
-    else entries.push(`🤝 Stalemate at ${B}.`);
-    finishTurn(owners, entries, winner === 'atk', grant, { atkStrat: atkC ? stratOf(atkC.species) : null, defStrat: defC ? stratOf(defC.species) : null, defender: defP });
+  // ── splitting: divide a legion into two, one must move this turn ──
+  function confirmSplit(legionId: string, keepIds: string[], moveIds: string[]) {
+    const slot = nextLegionSlot(match, match.turn); if (!slot) { setSplitting(null); return; }
+    const src = match.legions[legionId];
+    const nid = `${match.turn}-${slot.n}`;
+    const legions = { ...match.legions,
+      [legionId]: { ...src, species: keepIds },
+      [nid]: { id: nid, player: match.turn, n: slot.n, emblem: slot.emblem, hex: src.hex, team: src.team, species: moveIds, moved: false } };
+    setMatch({ ...match, legions });
+    setSplitting(null);
+    setSelLegion(nid); // the new legion shares the hex and must move off it
+    setLog((x) => [...x, `✂️ ${PLAYERS[match.turn].name} split legion ${src.n} → new legion ${slot.n} (must move this turn).`]);
   }
-  function humanAttack(mode: Faction, species: string) {
-    const hex = pending!; setPending(null);
-    const defP = match.owners[hex] as PlayerId;
-    resolveContest(hex, match.turn, { mode, species }, defP, aiChooseContest(match, defP, curBiome(match.states, hex)));
+  // ── GM lab: switch a legion's team (keeps species, recruit ladder resets) ──
+  function switchTeam(legionId: string) {
+    setMatch((m) => { const l = m.legions[legionId]; const team: Faction = l.team === 'eat' ? 'fk' : 'eat'; return { ...m, legions: { ...m.legions, [legionId]: { ...l, team } } }; });
+    const l = match.legions[legionId];
+    setLog((x) => [...x, `🧪 ${PLAYERS[l.player].name}'s legion ${l.n} re-engineered to Team ${FACTION[l.team === 'eat' ? 'fk' : 'eat'].name}.`]);
   }
-  function aiClash(hex: string) {
-    const defP = match.owners[hex] as PlayerId, biome = curBiome(match.states, hex);
-    const atkC = aiChooseContest(match, match.turn, biome);
-    // AI vs AI (or the AI can't field a champion) → resolve headlessly
-    if (aiPlayers.has(defP) || !atkC) { resolveContest(hex, match.turn, atkC, defP, aiChooseContest(match, defP, biome)); return; }
-    // AI attacks a HUMAN → hand the defender the setup so they can answer or concede
-    setDefense({ hex, atk: atkC });
+  // arrange popup confirmed
+  function applyArrange(legA: string[], embA: BurstKind, legB: string[], embB: BurstKind) {
+    const p = match.turn;
+    setMatch((m) => { const ls = legionsOf(m, p); const [a, b] = ls; if (!a || !b) return m; return { ...m, legions: { ...m.legions, [a.id]: { ...a, species: legA, emblem: embA }, [b.id]: { ...b, species: legB, emblem: embB } } }; });
+    setArranged((s) => new Set([...s, p]));
   }
-  // a human defender gives up the hex to the (computer) attacker
-  function defenderConcede(hex: string) {
-    const owner = match.owners[hex] as PlayerId; // the human
-    const owners = { ...match.owners }; owners[hex] = match.turn; // attacker takes it
-    const biome = curBiome(match.states, hex);
-    const settled = speciesInBiome(biome).filter((s) => speciesCat(s) === PLAYERS[match.turn].fac).map((s) => s.id);
-    setDefense(null);
-    finishTurn(owners, [`🏳️ ${PLAYERS[owner].name} conceded ${BOARDS[biome].name} to ${PLAYERS[match.turn].name}.`], true, { player: match.turn, species: settled });
-  }
-  // the computer takes its map turn
+
+  // reactive-defense concede from the human prompt is handled by humanDefend(false)
+  function defenderConcede() { if (defense) { resolveAuto(defense.atkLegion, defense.defLegion, defense.hex, defense.atk, null); setDefense(null); } }
+
+  // the computer takes its map turn: move each legion once, then end the turn
   useEffect(() => {
-    if (phase !== 'map' || result || pending || mustering || defense || !aiPlayers.has(match.turn)) return;
+    if (phase !== 'map' || result || pending || mustering || defense || defenseReq || splitting || !aiPlayers.has(match.turn) || !arranged.has(match.turn)) return;
     const id = setTimeout(() => {
       if (reach == null) { rollMove(); return; }
-      const mv = aiMapMove(match, match.turn, reach);
-      if (mv.type === 'muster' && mv.hexId) muster(mv.hexId);
-      else if (mv.type === 'clash' && mv.hexId) aiClash(mv.hexId);
-      else passTurn();
-    }, 650);
+      const mv = aiMapMove(match, match.turn, reach); // {type, hexId, legionId}
+      if (mv.type === 'pass' || !mv.legionId || !mv.hexId) { endTurn(); return; }
+      const tgt = legionAt(match, mv.hexId);
+      if (tgt && tgt.player !== match.turn) beginLegionClash(mv.legionId, tgt.id, mv.hexId);
+      else if (match.owners[mv.hexId] && match.owners[mv.hexId] !== match.turn) requestDefense(mv.legionId, mv.hexId, match.owners[mv.hexId] as PlayerId);
+      else moveAndRecruit(mv.legionId, mv.hexId);
+    }, 620);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, match, reach, pending, mustering, defense, result, aiPlayers]);
+  }, [phase, match, reach, pending, mustering, defense, defenseReq, splitting, arranged, result, aiPlayers]);
 
   // standalone reference tab (pinned via the #guide hash)
   if (typeof location !== 'undefined' && location.hash === '#guide') return <MusterGuidePage />;
 
   if (phase === 'battle' && state) {
+    const atkP = clashCtx ? match.legions[clashCtx.atkLegion]?.player : undefined;
+    const defP = clashCtx ? match.legions[clashCtx.defLegion]?.player : undefined;
     return (
       <BattleScreen state={state} dispatch={dispatch}
         mapMode={activeHex != null}
         biomeName={activeHex ? BOARDS[curBiome(match.states, activeHex)].name : undefined}
-        attackerName={activeHex ? PLAYERS[match.turn].name : undefined}
-        defenderName={activeHex && match.owners[activeHex] ? PLAYERS[match.owners[activeHex]!].name : undefined}
+        attackerName={atkP ? PLAYERS[atkP].name : undefined}
+        defenderName={defP ? PLAYERS[defP].name : undefined}
         onClaim={activeHex ? claimAndReturn : undefined}
         aiSides={aiBattleSides}
-        onExit={() => { setAiBattleSides([]); activeHex ? setPhase('map') : location.reload(); }}
+        onExit={() => { setAiBattleSides([]); setClashCtx(null); activeHex ? setPhase('map') : location.reload(); }}
         onNewRandom={() => skirmish(undefined)} />
     );
   }
 
   if (phase === 'map') {
+    const cur = match.turn;
+    const isHuman = !aiPlayers.has(cur);
+    const mustArrange = isHuman && !arranged.has(cur);
     return (
       <>
-        <MapScreen match={match} onPick={pickBiome} onEnd={endMatch} onHome={() => setPhase('home')} note={warmingNote} log={log} reach={reach} onRoll={rollMove} onPass={passTurn} />
+        <MapScreen match={match} reach={reach} selLegion={selLegion} activePlayer={cur} interactive={isHuman && !mustArrange}
+          onPick={pickHex} onRoll={rollMove} onEndTurn={endTurn} onSplit={(id) => setSplitting(id)} onSwitchTeam={switchTeam}
+          onEnd={endMatch} onHome={() => setPhase('home')} note={warmingNote} log={log} />
         {/* floating utilities: your hand + the recruit-ladder reference */}
         <div className="fixed bottom-3 right-3 z-40 flex flex-col items-end gap-2">
-          <button onClick={() => setShowHands(true)} title="Your species, strategies & weirdos"
+          <button onClick={() => setShowHands(true)} title="Your legions, species, strategies & weirdos"
             className="px-3 py-2 rounded-full border-2 border-ink font-extrabold text-xs shadow-comic text-white"
-            style={{ background: PLAYERS[match.turn].color }}>🎴 {PLAYERS[match.turn].name}'s hand</button>
+            style={{ background: PLAYERS[cur].color }}>🎴 {PLAYERS[cur].name}'s legions</button>
           <button onClick={() => setShowGuide(true)} title="Recruit ladders by biome"
             className="px-3 py-2 rounded-full border-2 border-ink bg-white font-extrabold text-xs shadow-comic">📖 Muster guide</button>
         </div>
         <AnimatePresence>
-          {showHands && <HandPanel match={match} viewer={match.turn} onClose={() => setShowHands(false)} />}
+          {mustArrange && <LegionArrange match={match} player={cur} onConfirm={applyArrange} />}
+          {showHands && <HandPanel match={match} viewer={cur} onClose={() => setShowHands(false)} />}
           {showGuide && <MusterGuide onClose={() => setShowGuide(false)} />}
-          {mustering && (
-            <MusterScreen match={match} hex={mustering} player={match.turn}
-              onRecruit={(sp) => { const h = mustering; setMustering(null); doMuster(h, sp); }}
-              onCancel={() => setMustering(null)} />
+          {splitting && <SplitLegion legion={match.legions[splitting]} onConfirm={(keep, move) => confirmSplit(splitting, keep, move)} onCancel={() => setSplitting(null)} />}
+          {mustering && match.legions[mustering.legionId] && (
+            <MusterScreen match={match} legion={match.legions[mustering.legionId]} hex={mustering.hex}
+              onRecruit={(sp) => doRecruit(mustering.legionId, sp)} onCancel={() => setMustering(null)} />
           )}
-          {pending && (
-            <ContestSetup match={match} hex={pending} vsAI={hasAI} onAttack={humanAttack}
-              onLaunch={launchContest} onConcede={concedeContest} onCancel={() => setPending(null)} />
+          {defenseReq && (
+            <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <motion.div className="bg-white rounded-2xl border-2 border-ink p-5 text-center max-w-sm w-full shadow-comic" initial={{ scale: 0.9 }} animate={{ scale: 1 }}>
+                <div className="font-black text-sm mb-1" style={{ color: PLAYERS[defenseReq.owner].color }}>{PLAYERS[defenseReq.owner].dot} {PLAYERS[defenseReq.owner].name} — defend {BOARDS[curBiome(match.states, defenseReq.hex)].name}?</div>
+                <div className="text-[11px] text-neutral-500 mb-3">{PLAYERS[match.turn].name} is moving in. Defend and you roll 1d6 to rush a legion within range to meet them; decline and the hex flips.</div>
+                <div className="flex gap-2 justify-center">
+                  <button onClick={() => humanDefend(true)} className="px-4 py-2 rounded-xl border-2 border-ink text-white font-extrabold" style={{ background: PLAYERS[defenseReq.owner].color }}>🛡️ Defend (roll)</button>
+                  <button onClick={() => humanDefend(false)} className="px-4 py-2 rounded-xl border-2 border-ink bg-white font-bold text-neutral-600">🏳️ Let it go</button>
+                </div>
+              </motion.div>
+            </motion.div>
           )}
-          {defense && (
+          {pending && match.legions[pending.atkLegion] && match.legions[pending.defLegion] && (
+            <ContestSetup match={match} hex={pending.hex}
+              atkPool={match.legions[pending.atkLegion].species} defPool={match.legions[pending.defLegion].species}
+              vsAI={aiPlayers.has(match.legions[pending.defLegion].player)}
+              aiDefend={() => legionContest(match.legions[pending.defLegion])}
+              onLaunch={launchContest} onConcede={() => resolveAuto(pending.atkLegion, pending.defLegion, pending.hex, legionContest(match.legions[pending.atkLegion]), null)}
+              onCancel={() => { setPending(null); setClashCtx(null); }} />
+          )}
+          {defense && match.legions[defense.atkLegion] && match.legions[defense.defLegion] && (
             <ContestSetup match={match} hex={defense.hex} aiAttack={defense.atk}
-              onLaunch={(r) => launchContest(r, defense.hex)} onConcede={() => defenderConcede(defense.hex)}
-              onAttack={() => {}} onCancel={() => {}} />
+              atkPool={match.legions[defense.atkLegion].species} defPool={match.legions[defense.defLegion].species}
+              onLaunch={(r) => launchBattle(defense.atk, { mode: r.defMode, species: r.defSpecies })}
+              onConcede={defenderConcede} onCancel={() => {}} />
           )}
           {result && (
             <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>

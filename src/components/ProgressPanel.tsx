@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Right column: live match progress — turn, warming clock, per-biome control,
 // running player log, and the end-match button.
-import { PLAYERS, heldBy, biomesControlledBy, biomeWinThreshold, livingBiomes, ALL_BIOMES, MatchState } from '../game/humboldt';
+import { PLAYERS, heldBy, legionsOf, ALL_BIOMES, MatchState } from '../game/humboldt';
 import { BOARDS } from '../engine/data';
 import { biomeOwner, hexesOfBiome, degLabel, MAX_C } from '../game/board';
 import { BurstBadge } from './LegionBurst';
@@ -46,7 +46,6 @@ function ThermalScale({ warming }: { warming: number }) {
 
 export function ProgressPanel({ match, log, onEnd }: { match: MatchState; log: string[]; onEnd: () => void }) {
   const t = PLAYERS[match.turn];
-  const need = biomeWinThreshold(match), living = livingBiomes(match).length;
   return (
     <div className="rounded-2xl border-2 border-ink bg-white/70 p-2.5 text-left flex flex-col gap-2.5" style={{ maxHeight: '74vh' }}>
       <div className="font-black text-sm">📊 Progress</div>
@@ -61,7 +60,7 @@ export function ProgressPanel({ match, log, onEnd }: { match: MatchState; log: s
 
       {/* victory goal */}
       <div className="rounded-lg bg-amber-50 border border-amber-300 px-2 py-1 text-[11px] font-bold text-amber-800 text-center">
-        🎯 Control <b>{need}</b> of {living} biomes to win now — else the <b>most</b> biomes at +4 °C
+        🎯 Eliminate every rival legion — last player standing wins
       </div>
 
       {/* biome control */}
@@ -89,7 +88,7 @@ export function ProgressPanel({ match, log, onEnd }: { match: MatchState; log: s
           {match.players.map((p) => (
             <div key={p} className="text-[11px] font-bold flex justify-between items-center gap-1" style={{ color: PLAYERS[p].color }}>
               <span className="truncate flex items-center gap-1"><BurstBadge color={PLAYERS[p].color} kind={PLAYERS[p].emblem} size={18} /> {PLAYERS[p].name}</span>
-              <span className="whitespace-nowrap tabular-nums">{biomesControlledBy(match, p)}👑 · {heldBy(match, p)}h · {match.collection[p].length}🧬</span>
+              <span className="whitespace-nowrap tabular-nums">{legionsOf(match, p).length}🎆 · {heldBy(match, p)}h</span>
             </div>
           ))}
         </div>

@@ -2,8 +2,8 @@
 // The board as Humboldt's Naturgemälde transect: our 10 biomes grouped under
 // his climate/altitude zones, placed sea-level → summit on a stylized cross-section.
 
-import { HEXES, START_HEXES, biomeOwner, hexesOfBiome } from './board';
-import { SPECIES, speciesCat } from './species';
+import { HEXES, START_HEXES, biomeOwner, hexesOfBiome, neighbors } from './board';
+import { SPECIES, speciesCat, strategyCard } from './species';
 
 export type PlayerId = 'p1' | 'p2' | 'p3' | 'p4';
 export type Faction = 'eat' | 'fk';
@@ -40,66 +40,108 @@ export const ZONES: { id: string; name: string; biomes: string[] }[] = [
 ];
 export const zoneOf = (code: string) => ZONES.find((z) => z.biomes.includes(code));
 
+// ── Legions: Titan-style mobile stacks ──
+// A legion is a stack of species that occupies a hex, moves each turn, recruits
+// locally, splits, and fights. Its firework emblem identifies it within a player
+// (the player's colour is shared across their legions).
+export const STACK_CAP = 7;            // a legion is full at 7 species (incl. weirdos)
+export const MAX_LEGIONS = 4;          // each player has at most 4 legion markers
+export const LEGION_EMBLEMS: BurstKind[] = ['chrysanthemum', 'peony', 'kamuro', 'willow'];
+export interface Legion {
+  id: string;          // `${player}-${n}`
+  player: PlayerId;
+  n: number;           // 1..4
+  emblem: BurstKind;   // firework shell identifying this legion within the player
+  hex: string;         // current position (one legion per hex globally)
+  team: Faction;       // eat|fk — switchable only in a GM lab
+  species: string[];   // stack (species ids), max STACK_CAP
+  moved: boolean;      // has moved this turn
+}
+
 // owners/states are keyed by HEX id (see board.ts), not biome code.
 export interface MatchState {
   owners: Record<string, PlayerId | null>;
   states: Record<string, string>; // hex id -> current biome code (mutated by the warming clock)
   warming: number;                // degrees °C, 0.0 .. MAX_C
-  turns: number;                  // turns (contests) resolved so far
+  turns: number;                  // turns resolved so far
   claims: number;                 // hexes claimed so far (drives warming)
   turn: PlayerId;
   players: PlayerId[];            // participating players, in turn order (2–4)
-  homes: string[];               // starting hex ids (for the 🏠 markers)
-  collection: Record<PlayerId, string[]>; // SPECIES ids each player has collected
+  legions: Record<string, Legion>; // all living legions by id
   adapt: Record<PlayerId, Record<string, number>>; // strategy id -> Red Queen adaptation level per player
 }
 export const ADAPT_CAP = 3; // max adaptation; champion bonus = 2 - level (down to -1)
-// A team-biased starter roster: most of your team's species + a few of the other.
-export function starterCollection(fac: Faction): string[] {
-  const own = SPECIES.filter((s) => speciesCat(s) === fac).map((s) => s.id);
-  const other = SPECIES.filter((s) => speciesCat(s) !== fac).map((s) => s.id);
-  const shuffled = (a: string[]) => { const x = [...a]; for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x; };
-  // small starter — you grow your team roster by mustering biomes, and pick up
-  // off-team species only by winning clashes.
-  return Array.from(new Set([...shuffled(own).slice(0, 12), ...shuffled(other).slice(0, 4)]));
+
+// the 6 lowest-tier species of a team, to seed the two starting legions (3 each)
+export function starterSpecies(team: Faction): string[] {
+  return SPECIES.filter((s) => speciesCat(s) === team)
+    .map((s) => ({ id: s.id, t: strategyCard(s.strategy)?.t ?? 0 }))
+    .sort((a, b) => a.t - b.t)
+    .slice(0, 6)
+    .map((x) => x.id);
+}
+// a free adjacent hex to seed a player's second legion next to their home
+function secondStart(home: string, taken: Set<string>): string {
+  return neighbors(home).find((n) => !taken.has(n)) ?? home;
 }
 export function freshMatch(players: PlayerId[] = ['p1', 'p2']): MatchState {
   const owners: Record<string, PlayerId | null> = {};
   const states: Record<string, string> = {};
   HEXES.forEach((h) => { owners[h.id] = null; states[h.id] = h.biome; });
-  const homes = players.map((_, i) => START_HEXES[i]);
-  players.forEach((p, i) => { owners[homes[i]] = p; });
-  const collection = {} as Record<PlayerId, string[]>;
+  const legions: Record<string, Legion> = {};
   const adapt = {} as Record<PlayerId, Record<string, number>>;
-  players.forEach((p) => { collection[p] = starterCollection(PLAYERS[p].fac); adapt[p] = {}; });
-  return { owners, states, warming: 0, turns: 0, claims: 0, turn: players[0], players, homes, collection, adapt };
+  const taken = new Set<string>();
+  players.forEach((p, i) => {
+    const team = PLAYERS[p].fac;
+    const home = START_HEXES[i]; taken.add(home);
+    const adj = secondStart(home, taken); taken.add(adj);
+    owners[home] = p; owners[adj] = p;
+    const six = starterSpecies(team);
+    legions[`${p}-1`] = { id: `${p}-1`, player: p, n: 1, emblem: LEGION_EMBLEMS[0], hex: home, team, species: six.slice(0, 3), moved: false };
+    legions[`${p}-2`] = { id: `${p}-2`, player: p, n: 2, emblem: LEGION_EMBLEMS[1], hex: adj, team, species: six.slice(3, 6), moved: false };
+    adapt[p] = {};
+  });
+  return { owners, states, warming: 0, turns: 0, claims: 0, turn: players[0], players, legions, adapt };
 }
+
+// ── legion helpers ──
+export const legionsOf = (m: MatchState, p: PlayerId): Legion[] =>
+  Object.values(m.legions).filter((l) => l.player === p).sort((a, b) => a.n - b.n);
+export const legionAt = (m: MatchState, hexId: string): Legion | undefined =>
+  Object.values(m.legions).find((l) => l.hex === hexId);
+export const occupiedHexes = (m: MatchState): Set<string> => new Set(Object.values(m.legions).map((l) => l.hex));
+// the next unused legion number/emblem for a player (for splitting)
+export function nextLegionSlot(m: MatchState, p: PlayerId): { n: number; emblem: BurstKind } | null {
+  const used = new Set(legionsOf(m, p).map((l) => l.n));
+  for (let n = 1; n <= MAX_LEGIONS; n++) if (!used.has(n)) return { n, emblem: LEGION_EMBLEMS[n - 1] };
+  return null;
+}
+// players still in the game (≥1 legion)
+export const livingPlayers = (m: MatchState): PlayerId[] => m.players.filter((p) => legionsOf(m, p).length > 0);
+
 // hexes held by a player
 export const heldBy = (m: MatchState, p: PlayerId) => HEXES.filter((h) => m.owners[h.id] === p).length;
-// whole biomes (all current patches) controlled by a player
+// whole biomes (all current patches) controlled by a player — kept for the scoreboard
 export const biomesControlledBy = (m: MatchState, p: PlayerId) =>
   ALL_BIOMES.filter((code) => biomeOwner(m.owners, code, m.states) === p).length;
-
-// ── victory: control a majority of the biomes that still exist ──
-// Warming drives some biomes extinct (0 hexes), so we count only living ones.
 export const livingBiomes = (m: MatchState) =>
   ALL_BIOMES.filter((code) => hexesOfBiome(code, m.states).length > 0);
-// strict majority of living biomes
-export const biomeWinThreshold = (m: MatchState) => Math.floor(livingBiomes(m).length / 2) + 1;
-// early instant win — a player controls a strict majority of living biomes
+
+// ── victory: elimination — a player with no legions is out ──
+// Winner once only one player remains; +4 °C fallback = most legions (tiebreak hexes).
 export function matchWinner(m: MatchState): PlayerId | null {
-  const need = biomeWinThreshold(m);
-  for (const p of m.players) if (biomesControlledBy(m, p) >= need) return p;
+  const alive = livingPlayers(m);
+  if (alive.length === 1 && m.players.length > 1) return alive[0];
   return null;
 }
-// plurality finish — most biomes (tiebreak: hexes). Used when warming maxes out.
 export function pluralityWinner(m: MatchState): PlayerId {
-  return [...m.players].sort((a, b) => biomesControlledBy(m, b) - biomesControlledBy(m, a) || heldBy(m, b) - heldBy(m, a))[0];
+  return [...m.players].sort((a, b) => legionsOf(m, b).length - legionsOf(m, a).length || heldBy(m, b) - heldBy(m, a))[0];
 }
-// a player one biome short of the majority (no winner yet) — for the "close" cue
+// a player one kill away from winning (only rival left has a single legion) — "close" cue
 export function matchThreat(m: MatchState): PlayerId | null {
-  if (matchWinner(m)) return null;
-  const need = biomeWinThreshold(m);
-  for (const p of m.players) if (biomesControlledBy(m, p) === need - 1) return p;
-  return null;
+  const alive = livingPlayers(m);
+  if (alive.length !== 2) return null;
+  const weak = alive.find((p) => legionsOf(m, p).length === 1);
+  const strong = alive.find((p) => p !== weak);
+  return weak && strong ? strong : null;
 }
