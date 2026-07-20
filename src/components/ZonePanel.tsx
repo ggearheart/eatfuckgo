@@ -29,7 +29,7 @@ export function ZonePanel() {
         <div className="flex gap-px">
           {['06', '07', '08'].map((n) => (
             <img key={n} src={`${import.meta.env.BASE_URL}img/plates/plante${n}.jpg`} alt="Humboldt & Bonpland botanical plate"
-              loading="lazy" className="w-1/3 h-16 object-cover object-top" style={{ filter: 'sepia(0.15)' }} />
+              loading="lazy" className="w-1/3 h-24 object-cover" style={{ objectPosition: 'center 42%', filter: 'sepia(0.15)' }} />
           ))}
         </div>
         <div className="text-[8px] italic text-neutral-500 text-center py-0.5 px-1">Plantes équinoxiales — Humboldt &amp; Bonpland, 1808 · public domain</div>
