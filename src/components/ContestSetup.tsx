@@ -8,7 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BOARDS, BIOME_AFFINITY } from '../engine/data';
 import { curBiome } from '../game/board';
 import { PLAYERS, FACTION, Faction, PlayerId, MatchState } from '../game/humboldt';
-import { speciesInBiome, speciesCat, stratName, Species } from '../game/species';
+import { speciesInBiome, speciesCat, stratName, SPECIES_BY_ID, Species } from '../game/species';
+import { aiChooseContest } from '../game/ai';
 
 export interface ContestResult {
   atkMode: Faction; atkIds: string[]; atkLead: string; atkSpecies: string;
@@ -46,8 +47,9 @@ function SpeciesGrid({ list, chosen, onPick, color, fatigue }: { list: Species[]
   );
 }
 
-export function ContestSetup({ match, hex, vsAI, onAttack, onLaunch, onConcede, onCancel }: {
-  match: MatchState; hex: string; vsAI?: boolean; onAttack?: (mode: Faction, species: string) => void; onLaunch: (r: ContestResult) => void; onConcede: () => void; onCancel: () => void;
+export function ContestSetup({ match, hex, vsAI, aiAttack, onAttack, onLaunch, onConcede, onCancel }: {
+  match: MatchState; hex: string; vsAI?: boolean; aiAttack?: { mode: Faction; species: string };
+  onAttack?: (mode: Faction, species: string) => void; onLaunch: (r: ContestResult) => void; onConcede: () => void; onCancel: () => void;
 }) {
   const biome = curBiome(match.states, hex);
   const b = BOARDS[biome];
@@ -63,9 +65,10 @@ export function ContestSetup({ match, hex, vsAI, onAttack, onLaunch, onConcede, 
     return modeAvail(o, team) ? team : modeAvail(o, other) ? other : team;
   };
 
-  const [step, setStep] = useState<Step>('atkMode');
-  const [atkMode, setAtkMode] = useState<Faction>(() => firstMode(atkOwned, PLAYERS[atk].fac));
-  const [atkSpecies, setAtkSpecies] = useState<string | null>(null);
+  // defend-vs-AI: the computer has already committed its attack; jump straight to the defender's view
+  const [step, setStep] = useState<Step>(aiAttack ? 'defView' : 'atkMode');
+  const [atkMode, setAtkMode] = useState<Faction>(() => (aiAttack ? aiAttack.mode : firstMode(atkOwned, PLAYERS[atk].fac)));
+  const [atkSpecies, setAtkSpecies] = useState<string | null>(aiAttack ? aiAttack.species : null);
   const [defMode, setDefMode] = useState<Faction>(() => firstMode(defOwned, PLAYERS[def].fac));
   const [defSpecies, setDefSpecies] = useState<string | null>(null);
   const pickAtkMode = (f: Faction) => { setAtkMode(f); setAtkSpecies(null); };
@@ -131,7 +134,17 @@ export function ContestSetup({ match, hex, vsAI, onAttack, onLaunch, onConcede, 
               <SpeciesGrid list={atkRoster} chosen={atkSpecies} onPick={setAtkSpecies} color={PLAYERS[atk].color} fatigue={(sp) => match.adapt[atk][sp.strategy] ?? 0} />
               <div className="flex gap-2">
                 <button onClick={() => setStep('atkMode')} className="px-3 py-2 rounded-lg border-2 border-ink bg-white text-xs font-bold">← mode</button>
-                <button disabled={!atkSpecies} onClick={() => (vsAI ? onAttack!(atkMode, atkSpecies!) : setStep('handoff'))}
+                <button disabled={!atkSpecies} onClick={() => {
+                  if (!vsAI) { setStep('handoff'); return; }
+                  // human attacks the computer → AI picks its defence, then we play the clash live
+                  const defC = aiChooseContest(match, def, biome);
+                  if (!defC) { onAttack!(atkMode, atkSpecies!); return; } // AI can't field a defence → straight claim
+                  const dRoster = rosterFor(biome, defC.mode).filter((s) => defOwned.has(s.id));
+                  onLaunch({
+                    atkMode, atkIds: stratsOf(atkRoster), atkLead: spById(atkSpecies)!.strategy, atkSpecies: atkSpecies!,
+                    defMode: defC.mode, defIds: stratsOf(dRoster), defLead: SPECIES_BY_ID[defC.species].strategy, defSpecies: defC.species,
+                  });
+                }}
                   className="flex-1 py-2.5 rounded-xl border-2 border-ink text-white font-extrabold disabled:opacity-40"
                   style={{ background: PLAYERS[atk].color }}>{vsAI ? '⚔️ Attack' : 'Lock in'} {spById(atkSpecies)?.emoji ?? ''}{vsAI ? '' : ' →'}</button>
               </div>

@@ -7,6 +7,7 @@ import { aiMapMove, aiChooseContest } from './game/ai';
 import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
+import type { Side } from './engine/data';
 import { freshMatch, nextPlayer, heldBy, biomesControlledBy, matchWinner, pluralityWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, setPlayerEmblems, FACTION, PLAYERS, ALL_PLAYERS, ALL_BIOMES, ADAPT_CAP, MatchState, Faction, BurstKind, PlayerId } from './game/humboldt';
 import { BurstBadge, BURST_META } from './components/LegionBurst';
 import { curBiome, hexesOfBiome, tickWarming, degLabel, MAX_C } from './game/board';
@@ -31,6 +32,8 @@ export default function App() {
   const [phase, setPhase] = useState<Phase>('home');
   const [match, setMatch] = useState<MatchState>(freshMatch);
   const [pending, setPending] = useState<string | null>(null); // hex id awaiting clash setup
+  const [defense, setDefense] = useState<{ hex: string; atk: { mode: Faction; species: string } } | null>(null); // AI attacks a human → human defends
+  const [aiBattleSides, setAiBattleSides] = useState<Side[]>([]); // which battle sides the computer plays
   const [mustering, setMustering] = useState<string | null>(null); // hex id awaiting recruit choice
   const [activeHex, setActiveHex] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -54,7 +57,7 @@ export default function App() {
     const atk = bt ?? (Math.random() < 0.5 ? 'eat' : 'fk');
     const def: Faction = atk === 'eat' ? 'fk' : 'eat';
     const terrain = TERRAINS[rand(TERRAINS.length)];
-    setActiveHex(null);
+    setActiveHex(null); setAiBattleSides([]);
     dispatch({ t: 'new', setup: { fac: { atk, def }, terrain, atkIds: randStack(deckOf(atk), 2 + rand(4)), defIds: randStack(deckOf(def), 2 + rand(4)) } });
     setPhase('battle');
   }
@@ -64,7 +67,7 @@ export default function App() {
     const players = ALL_PLAYERS.slice(0, playerCount);
     setPlayerNames(names); setPlayerFactions(facs); setPlayerEmblems(emblems);
     setAiPlayers(new Set(players.filter((_, i) => ai[i])));
-    setMatch(freshMatch(players)); setResult(null); setWarmingNote(null); setReach(null); setMustering(null); setPending(null);
+    setMatch(freshMatch(players)); setResult(null); setWarmingNote(null); setReach(null); setMustering(null); setPending(null); setDefense(null); setAiBattleSides([]);
     setLog([`🌱 ${players.map((p, i) => `${PLAYERS[p].dot} ${PLAYERS[p].name}${ai[i] ? ' 🤖' : ''}`).join(' · ')} — the mountain awaits.`]);
     setPhase('map');
   }
@@ -135,8 +138,8 @@ export default function App() {
     if (entries.length) setLog((l) => [...l, ...entries]);
   }
 
-  function launchContest(r: ContestResult) {
-    const hex = pending!; setPending(null); setActiveHex(hex);
+  function launchContest(r: ContestResult, hexArg?: string) {
+    const hex = hexArg ?? pending!; setPending(null); setDefense(null); setActiveHex(hex);
     const atk = match.turn, def = match.owners[hex] as PlayerId;
     dispatch({ t: 'new', setup: {
       fac: { atk: r.atkMode, def: r.defMode }, terrain: curBiome(match.states, hex),
@@ -144,6 +147,11 @@ export default function App() {
       lead: { atk: r.atkLead, def: r.defLead }, species: { atk: r.atkSpecies, def: r.defSpecies },
       adapt: { atk: match.adapt[atk][r.atkLead] ?? 0, def: match.adapt[def][r.defLead] ?? 0 },
     } });
+    // the computer plays whichever side(s) it holds; the human plays theirs live
+    const sides: Side[] = [];
+    if (aiPlayers.has(atk)) sides.push('atk');
+    if (aiPlayers.has(def)) sides.push('def');
+    setAiBattleSides(sides);
     setPhase('battle');
   }
   function concedeContest() {
@@ -170,7 +178,7 @@ export default function App() {
       else entries.push(`🤝 Stalemate at ${biomeNm}.`);
     }
     finishTurn(owners, entries, state?.winner === 'atk', grant, { atkStrat: state?.lead.atk ?? null, defStrat: state?.lead.def ?? null, defender: def });
-    setActiveHex(null); setPhase('map');
+    setActiveHex(null); setAiBattleSides([]); setPhase('map');
   }
   function endMatch() {
     const w = pluralityWinner(match), n = biomesControlledBy(match, w);
@@ -208,11 +216,24 @@ export default function App() {
   }
   function aiClash(hex: string) {
     const defP = match.owners[hex] as PlayerId, biome = curBiome(match.states, hex);
-    resolveContest(hex, match.turn, aiChooseContest(match, match.turn, biome), defP, aiChooseContest(match, defP, biome));
+    const atkC = aiChooseContest(match, match.turn, biome);
+    // AI vs AI (or the AI can't field a champion) → resolve headlessly
+    if (aiPlayers.has(defP) || !atkC) { resolveContest(hex, match.turn, atkC, defP, aiChooseContest(match, defP, biome)); return; }
+    // AI attacks a HUMAN → hand the defender the setup so they can answer or concede
+    setDefense({ hex, atk: atkC });
+  }
+  // a human defender gives up the hex to the (computer) attacker
+  function defenderConcede(hex: string) {
+    const owner = match.owners[hex] as PlayerId; // the human
+    const owners = { ...match.owners }; owners[hex] = match.turn; // attacker takes it
+    const biome = curBiome(match.states, hex);
+    const settled = speciesInBiome(biome).filter((s) => speciesCat(s) === PLAYERS[match.turn].fac).map((s) => s.id);
+    setDefense(null);
+    finishTurn(owners, [`🏳️ ${PLAYERS[owner].name} conceded ${BOARDS[biome].name} to ${PLAYERS[match.turn].name}.`], true, { player: match.turn, species: settled });
   }
   // the computer takes its map turn
   useEffect(() => {
-    if (phase !== 'map' || result || pending || mustering || !aiPlayers.has(match.turn)) return;
+    if (phase !== 'map' || result || pending || mustering || defense || !aiPlayers.has(match.turn)) return;
     const id = setTimeout(() => {
       if (reach == null) { rollMove(); return; }
       const mv = aiMapMove(match, match.turn, reach);
@@ -222,7 +243,7 @@ export default function App() {
     }, 650);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, match, reach, pending, mustering, result, aiPlayers]);
+  }, [phase, match, reach, pending, mustering, defense, result, aiPlayers]);
 
   // standalone reference tab (pinned via the #guide hash)
   if (typeof location !== 'undefined' && location.hash === '#guide') return <MusterGuidePage />;
@@ -235,7 +256,8 @@ export default function App() {
         attackerName={activeHex ? PLAYERS[match.turn].name : undefined}
         defenderName={activeHex && match.owners[activeHex] ? PLAYERS[match.owners[activeHex]!].name : undefined}
         onClaim={activeHex ? claimAndReturn : undefined}
-        onExit={() => (activeHex ? setPhase('map') : location.reload())}
+        aiSides={aiBattleSides}
+        onExit={() => { setAiBattleSides([]); activeHex ? setPhase('map') : location.reload(); }}
         onNewRandom={() => skirmish(undefined)} />
     );
   }
@@ -263,6 +285,11 @@ export default function App() {
           {pending && (
             <ContestSetup match={match} hex={pending} vsAI={hasAI} onAttack={humanAttack}
               onLaunch={launchContest} onConcede={concedeContest} onCancel={() => setPending(null)} />
+          )}
+          {defense && (
+            <ContestSetup match={match} hex={defense.hex} aiAttack={defense.atk}
+              onLaunch={(r) => launchContest(r, defense.hex)} onConcede={() => defenderConcede(defense.hex)}
+              onAttack={() => {}} onCancel={() => {}} />
           )}
           {result && (
             <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>

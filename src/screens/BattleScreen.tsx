@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Dispatch } from 'react';
 import type { State } from '../engine/engine';
@@ -8,7 +8,7 @@ import type { Side } from '../engine/data';
 import { BOARDS, CFG, WEIRDO_STACKS, EAT, FK } from '../engine/data';
 import { SPECIES_BY_ID } from '../game/species';
 import {
-  roller, firstPicker, secondPicker, deployTurn, diceProfile, expHits, sideName,
+  roller, firstPicker, secondPicker, deployTurn, diceProfile, expHits, sideName, bestCardIdx,
 } from '../engine/engine';
 import { ELEMENTS, TERRAIN_ELEMENTS, matchedElements, matchCount } from '../engine/elements';
 import { CardArt } from '../components/CardArt';
@@ -18,17 +18,43 @@ import { DicePools } from '../components/DicePools';
 import { CardModal } from '../components/CardModal';
 
 
-export function BattleScreen({ state: s, dispatch, onNewRandom, onExit, mapMode, biomeName, attackerName, defenderName, onClaim }: {
+export function BattleScreen({ state: s, dispatch, onNewRandom, onExit, mapMode, biomeName, attackerName, defenderName, onClaim, aiSides }: {
   state: State; dispatch: Dispatch<Action>; onNewRandom: () => void; onExit: () => void;
   mapMode?: boolean; biomeName?: string; attackerName?: string; defenderName?: string; onClaim?: () => void;
+  aiSides?: Side[];
 }) {
   const [inspect, setInspect] = useState<{ side: Side; idx: number } | null>(null);
+
+  // ── computer auto-play: when it's an AI side's turn to act, do it after a beat ──
+  useEffect(() => {
+    if (!aiSides || aiSides.length === 0 || s.winner) return;
+    let fn: (() => void) | undefined;
+    if (s.step === 'scenario') {
+      if (aiSides.includes(roller(s))) fn = () => dispatch({ t: 'rollScenario' });
+    } else if (s.step === 'p1' || s.step === 'p2') {
+      const side = s.step === 'p1' ? firstPicker(s) : secondPicker(s);
+      if (aiSides.includes(side)) {
+        const idx = bestCardIdx(s, side);
+        fn = idx >= 0
+          ? () => { dispatch({ t: 'select', side, idx }); dispatch({ t: 'commit' }); }
+          : () => dispatch({ t: 'concede', loser: side });
+      }
+    } else if (s.step === 'ready' && aiSides.length >= 2) {
+      fn = () => dispatch({ t: 'resolve' }); // only when no human is watching (AI vs AI)
+    }
+    if (!fn) return;
+    const id = setTimeout(fn, 750);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.step, s.round, s.winner]);
   const theme = s.battleType;
   const accent = theme === 'eat' ? '#c4561e' : '#7b4fa0';
   const b = BOARDS[s.terrain];
   const scenarioSet = !!s.scenario;
   const deploying = s.step === 'p1' || s.step === 'p2';
   const activeSide: Side | null = s.step === 'p1' ? firstPicker(s) : s.step === 'p2' ? secondPicker(s) : null;
+  // in a vs-computer clash exactly one side is the human; conceding must forfeit THEIR side
+  const humanSide: Side = aiSides && aiSides.length === 1 ? (aiSides[0] === 'atk' ? 'def' : 'atk') : 'atk';
 
   const steps = [
     { cls: 'done', n: '① Biome', sub: 'sets the stage' },
@@ -140,7 +166,7 @@ export function BattleScreen({ state: s, dispatch, onNewRandom, onExit, mapMode,
         <div className="flex gap-2 justify-center flex-wrap mb-3">
           {s.round > 2 && !s.weirdoUsed && !s.winner && <WeirdoBtn s={s} dispatch={dispatch} />}
           {s.round > 4 && !s.musterUsed && s.life.def > 0 && !s.winner && <MusterBtn s={s} dispatch={dispatch} />}
-          <button onClick={() => dispatch({ t: 'concede', loser: 'atk' })} className="px-3.5 py-1.5 rounded-lg border-2 border-neutral-300 bg-white text-neutral-500 text-[11px] font-bold">🏳️ Concede</button>
+          <button onClick={() => dispatch({ t: 'concede', loser: humanSide })} className="px-3.5 py-1.5 rounded-lg border-2 border-neutral-300 bg-white text-neutral-500 text-[11px] font-bold">🏳️ Concede</button>
         </div>
 
         {/* Hands */}

@@ -233,7 +233,7 @@ export function concede(s: State, loser: Side) { s.winner = other(loser); s.step
 
 // ── headless auto-resolution (for AI clashes) ──
 // each side deploys its best-expected card each round; runs to a winner.
-function bestCardIdx(s: State, side: Side): number {
+export function bestCardIdx(s: State, side: Side): number {
   let best = -1, bestScore = -Infinity;
   s.stack[side].forEach((inst, i) => {
     if (inst.exhausted) return;
