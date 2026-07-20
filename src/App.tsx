@@ -5,7 +5,7 @@ import { useBattle } from './store';
 import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
-import { freshMatch, otherPlayer, heldBy, biomesControlledBy, matchWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, FACTION, PLAYERS, ALL_BIOMES, MatchState, Faction, PlayerId } from './game/humboldt';
+import { freshMatch, otherPlayer, heldBy, biomesControlledBy, matchWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, FACTION, PLAYERS, ALL_BIOMES, ADAPT_CAP, MatchState, Faction, PlayerId } from './game/humboldt';
 import { curBiome, hexesOfBiome, tickWarming, degLabel } from './game/board';
 import { speciesInBiome, SPECIES_BY_ID } from './game/species';
 import { ContestSetup, ContestResult } from './components/ContestSetup';
@@ -52,7 +52,7 @@ export default function App() {
   function pickBiome(id: string) { setWarmingNote(null); setPending(id); }
   function rollMove() { setReach(1 + Math.floor(Math.random() * 6)); }
   // finish a turn: advance warming (per claim), apply migration, grow/prune collections, check victory, log
-  function finishTurn(owners: Record<string, any>, entries: string[], claimed: boolean, gain?: { player: PlayerId; species: string }) {
+  function finishTurn(owners: Record<string, any>, entries: string[], claimed: boolean, gain?: { player: PlayerId; species: string }, champions?: { atk: string | null; def: string | null }) {
     const tick = tickWarming(match, claimed);
     const displaced = tick.changed.filter((c) => owners[c.id]).length;
     tick.changed.forEach((c) => { if (owners[c.id]) owners[c.id] = null; }); // migration teeth
@@ -70,7 +70,13 @@ export default function App() {
       (['p1', 'p2'] as PlayerId[]).forEach((p) => { collection[p] = collection[p].filter((id) => !dead.has(id)); });
       entries.push(`🦴 ${extinct.map((c) => BOARDS[c].name).join(', ')} vanished — ${dead.size} species went extinct.`);
     }
-    const next = { ...match, owners, states: tick.states, warming: tick.warming, turns: match.turns + 1, claims: tick.claims, turn: otherPlayer(match.turn), collection };
+    // Red Queen adaptation: champions used this turn get more adapted; the attacker's rested strategies recover
+    const adapt = { p1: { ...match.adapt.p1 }, p2: { ...match.adapt.p2 } };
+    const atkP = match.turn, defP = otherPlayer(match.turn);
+    Object.keys(adapt[atkP]).forEach((sid) => { if (sid !== champions?.atk) adapt[atkP][sid] = Math.max(0, adapt[atkP][sid] - 1); });
+    if (champions?.atk) adapt[atkP][champions.atk] = Math.min(ADAPT_CAP, (adapt[atkP][champions.atk] || 0) + 1);
+    if (champions?.def) adapt[defP][champions.def] = Math.min(ADAPT_CAP, (adapt[defP][champions.def] || 0) + 1);
+    const next = { ...match, owners, states: tick.states, warming: tick.warming, turns: match.turns + 1, claims: tick.claims, turn: otherPlayer(match.turn), collection, adapt };
     setMatch(next);
     setReach(null); // next player rolls to move
     setWarmingNote(tick.changed.length
@@ -88,10 +94,12 @@ export default function App() {
   // launch the clash from the pre-clash species setup
   function launchContest(r: ContestResult) {
     const hex = pending!; setPending(null); setActiveHex(hex);
+    const atk = match.turn, def = otherPlayer(match.turn);
     dispatch({ t: 'new', setup: {
       fac: { atk: r.atkMode, def: r.defMode }, terrain: curBiome(match.states, hex),
       atkIds: r.atkIds, defIds: r.defIds,
       lead: { atk: r.atkLead, def: r.defLead }, species: { atk: r.atkSpecies, def: r.defSpecies },
+      adapt: { atk: match.adapt[atk][r.atkLead] ?? 0, def: match.adapt[def][r.defLead] ?? 0 },
     } });
     setPhase('battle');
   }
@@ -114,7 +122,7 @@ export default function App() {
       else if (state.winner === 'def') { owners[activeHex] = def; entries.push(`🛡️ ${defName} held ${biomeNm}.`); if (state.species.atk) gain = { player: def, species: state.species.atk }; }
       else entries.push(`🤝 Stalemate at ${biomeNm}.`);
     }
-    finishTurn(owners, entries, state?.winner === 'atk', gain);
+    finishTurn(owners, entries, state?.winner === 'atk', gain, { atk: state?.lead.atk ?? null, def: state?.lead.def ?? null });
     setActiveHex(null); setPhase('map');
   }
   function endMatch() {

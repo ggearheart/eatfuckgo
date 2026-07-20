@@ -45,7 +45,9 @@ export interface MatchState {
   claims: number;                 // hexes claimed so far (drives warming)
   turn: PlayerId;
   collection: Record<PlayerId, string[]>; // SPECIES ids each player has collected
+  adapt: Record<PlayerId, Record<string, number>>; // strategy id -> Red Queen adaptation level per player
 }
+export const ADAPT_CAP = 3; // max adaptation; champion bonus = 2 - level (down to -1)
 // A team-biased starter roster: most of your team's species + a few of the other.
 export function starterCollection(fac: Faction): string[] {
   const own = SPECIES.filter((s) => speciesCat(s) === fac).map((s) => s.id);
@@ -61,6 +63,7 @@ export function freshMatch(): MatchState {
   return {
     owners, states, warming: 0, turns: 0, claims: 0, turn: 'p1',
     collection: { p1: starterCollection(PLAYERS.p1.fac), p2: starterCollection(PLAYERS.p2.fac) },
+    adapt: { p1: {}, p2: {} },
   };
 }
 // hexes held by a player

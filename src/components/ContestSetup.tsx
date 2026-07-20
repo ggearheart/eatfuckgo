@@ -20,19 +20,24 @@ type Step = 'atkMode' | 'atkPick' | 'handoff' | 'defView' | 'defPick';
 const rosterFor = (biome: string, mode: Faction) => speciesInBiome(biome).filter((s) => speciesCat(s) === mode);
 const stratsOf = (list: Species[]) => Array.from(new Set(list.map((s) => s.strategy)));
 
-function SpeciesGrid({ list, chosen, onPick, color }: { list: Species[]; chosen: string | null; onPick: (id: string) => void; color: string }) {
+function SpeciesGrid({ list, chosen, onPick, color, fatigue }: { list: Species[]; chosen: string | null; onPick: (id: string) => void; color: string; fatigue: (sp: Species) => number }) {
   return (
     <div className="grid grid-cols-2 gap-2 my-3">
       {list.map((sp) => {
         const on = chosen === sp.id;
+        const fat = fatigue(sp); // Red Queen adaptation on this strategy
+        const bonus = 2 - fat;
         return (
           <button key={sp.id} onClick={() => onPick(sp.id)}
             className="flex items-center gap-2 p-2 rounded-xl border-2 text-left transition-transform hover:-translate-y-0.5"
             style={on ? { borderColor: color, background: '#fffdf5', boxShadow: `0 0 0 2px ${color}` } : { borderColor: '#e2d8c6', background: '#fff' }}>
             <span className="text-2xl">{sp.emoji}</span>
-            <span className="leading-tight">
-              <span className="block text-xs font-black">{sp.name}{on ? ' 👑' : ''}</span>
-              <span className="block text-[10px] text-neutral-500">{stratName(sp.strategy)}</span>
+            <span className="leading-tight min-w-0">
+              <span className="block text-xs font-black truncate">{sp.name}{on ? ' 👑' : ''}</span>
+              <span className="block text-[10px] text-neutral-500 truncate">{stratName(sp.strategy)}</span>
+              <span className="block text-[9px] font-bold" style={{ color: bonus > 0 ? '#2a7a3a' : bonus === 0 ? '#a06a10' : '#c02018' }}>
+                {fat ? `adapted ×${fat} · champ ${bonus >= 0 ? '+' : ''}${bonus}` : 'fresh · champ +2'}
+              </span>
             </span>
           </button>
         );
@@ -123,7 +128,7 @@ export function ContestSetup({ match, hex, onLaunch, onConcede, onCancel }: {
           {step === 'atkPick' && (
             <motion.div key="ap" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="text-center text-xs font-bold mt-2">{FACTION[atkMode].icon} Your {FACTION[atkMode].name} species in {b.name} — name your <b>dominant species</b> to lead the clash:</div>
-              <SpeciesGrid list={atkRoster} chosen={atkSpecies} onPick={setAtkSpecies} color={PLAYERS[atk].color} />
+              <SpeciesGrid list={atkRoster} chosen={atkSpecies} onPick={setAtkSpecies} color={PLAYERS[atk].color} fatigue={(sp) => match.adapt[atk][sp.strategy] ?? 0} />
               <div className="flex gap-2">
                 <button onClick={() => setStep('atkMode')} className="px-3 py-2 rounded-lg border-2 border-ink bg-white text-xs font-bold">← mode</button>
                 <button disabled={!atkSpecies} onClick={() => setStep('handoff')}
@@ -164,7 +169,7 @@ export function ContestSetup({ match, hex, onLaunch, onConcede, onCancel }: {
           {step === 'defPick' && (
             <motion.div key="dp" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="text-center text-xs font-bold mt-2">{FACTION[defMode].icon} Your {FACTION[defMode].name} species — name your <b>dominant species</b> to face {spById(atkSpecies)?.emoji}:</div>
-              <SpeciesGrid list={defRoster} chosen={defSpecies} onPick={setDefSpecies} color={PLAYERS[def].color} />
+              <SpeciesGrid list={defRoster} chosen={defSpecies} onPick={setDefSpecies} color={PLAYERS[def].color} fatigue={(sp) => match.adapt[def][sp.strategy] ?? 0} />
               <div className="flex gap-2">
                 <button onClick={() => setStep('defView')} className="px-3 py-2 rounded-lg border-2 border-ink bg-white text-xs font-bold">←</button>
                 <button onClick={onConcede} className="px-3 py-2 rounded-lg border-2 border-ink bg-white text-xs font-bold text-neutral-600">🏳️ Concede</button>

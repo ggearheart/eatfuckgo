@@ -24,6 +24,7 @@ export interface State {
   scenario: any | null; story: string;
   lead: { atk: string | null; def: string | null }; // dominant species' strategy id per side
   species: { atk: string | null; def: string | null }; // dominant species id per side (display)
+  adapt: { atk: number; def: number }; // Red Queen adaptation level of each champion at battle start
   weirdoUsed: boolean; musterUsed: boolean; winner: string | null; outcome: string; log: string[];
   lastRoll: LastRoll | null;
 }
@@ -48,6 +49,7 @@ export interface BattleSetup {
   terrain: string; atkIds: string[]; defIds: string[];
   lead?: { atk: string | null; def: string | null };     // dominant species' strategy id
   species?: { atk: string | null; def: string | null };  // dominant species id
+  adapt?: { atk: number; def: number };                  // champion adaptation levels
 }
 export function newBattle(setup: BattleSetup): State {
   const { fac, terrain, atkIds, defIds } = setup;
@@ -61,6 +63,7 @@ export function newBattle(setup: BattleSetup): State {
     scenario: null, story: '',
     lead: setup.lead ?? { atk: null, def: null },
     species: setup.species ?? { atk: null, def: null },
+    adapt: setup.adapt ?? { atk: 0, def: 0 },
     weirdoUsed: false, musterUsed: false, winner: null, outcome: '',
     log: [`⚔️ Biome Clash in ${BOARDS[terrain].name}! Life ${START_LIFE} each.`], lastRoll: null,
   };
@@ -104,8 +107,13 @@ export function diceProfile(s: State, inst: Inst, side: Side | null, oppCard: an
   const matched = matchedElements(c, s.terrain);
   if (matched.length) { dice += matched.length; add(`+${matched.length} dice · suits ${matched.map((e) => ELEMENTS[e].icon).join('')}`, 'terrain'); }
   else { dice -= 1; add('−1 die · unsuited to biome', 'terrain'); }
-  // dominant species: the strategy the player named as their champion gets the bonus
-  if (side && s.lead[side] === c.id) { dice += 2; add('+2 dice · 👑 dominant species', 'lineage'); }
+  // dominant species: champion bonus, eroded by Red Queen adaptation (2 − level)
+  if (side && s.lead[side] === c.id) {
+    const lvl = s.adapt[side] || 0;
+    const bonus = 2 - lvl;
+    dice += bonus;
+    add(`${bonus >= 0 ? '+' : ''}${bonus} dice · 👑 dominant${lvl ? ` (adapted ×${lvl})` : ' species'}`, 'lineage');
+  }
   if (side) {
     let lin = 0;
     s.stack[side].forEach((o) => { if (o !== inst && o.card.t < c.t && (o.card.ter || []).some((t: string) => (c.ter || []).includes(t))) lin++; });
