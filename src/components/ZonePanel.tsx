@@ -24,6 +24,17 @@ export function ZonePanel() {
         <button onClick={() => setOpen({})} className="text-[9px] text-neutral-500 underline">collapse</button>
       </div>
 
+      {/* antique herbarium accent — plates from Humboldt & Bonpland's Plantes équinoxiales (1808) */}
+      <div className="mb-2 rounded-lg border overflow-hidden" style={{ borderColor: '#c9b597', background: '#efe6d2' }}>
+        <div className="flex gap-px">
+          {['06', '07', '08'].map((n) => (
+            <img key={n} src={`${import.meta.env.BASE_URL}img/plates/plante${n}.jpg`} alt="Humboldt & Bonpland botanical plate"
+              loading="lazy" className="w-1/3 h-16 object-cover object-top" style={{ filter: 'sepia(0.15)' }} />
+          ))}
+        </div>
+        <div className="text-[8px] italic text-neutral-500 text-center py-0.5 px-1">Plantes équinoxiales — Humboldt &amp; Bonpland, 1808 · public domain</div>
+      </div>
+
       {ZONES.map((z) => {
         const isOpen = !!open[z.id];
         return (
