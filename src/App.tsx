@@ -14,6 +14,7 @@ import { speciesInBiome, speciesCat, recruitOptions, SPECIES_BY_ID } from './gam
 import { ContestSetup, ContestResult } from './components/ContestSetup';
 import { MusterScreen } from './components/MusterScreen';
 import { MusterGuide, MusterGuidePage } from './components/MusterGuide';
+import { HandPanel } from './components/HandPanel';
 
 const rand = (n: number) => Math.floor(Math.random() * n);
 function randStack(deck: any[], n: number): string[] {
@@ -43,6 +44,7 @@ export default function App() {
   const [log, setLog] = useState<string[]>([]);
   const [reach, setReach] = useState<number | null>(null); // this turn's 1d6 movement roll
   const [showGuide, setShowGuide] = useState(false);
+  const [showHands, setShowHands] = useState(false);
   const hasAI = aiPlayers.size > 0;
 
   const deckOf = (f: Faction) => (f === 'eat' ? EAT : FK);
@@ -242,10 +244,16 @@ export default function App() {
     return (
       <>
         <MapScreen match={match} onPick={pickBiome} onEnd={endMatch} onHome={() => setPhase('home')} note={warmingNote} log={log} reach={reach} onRoll={rollMove} onPass={passTurn} />
-        {/* muster guide — recruit-ladder reference, pinnable to its own tab */}
-        <button onClick={() => setShowGuide(true)} title="Recruit ladders by biome"
-          className="fixed bottom-3 right-3 z-40 px-3 py-2 rounded-full border-2 border-ink bg-white font-extrabold text-xs shadow-comic">📖 Muster guide</button>
+        {/* floating utilities: your hand + the recruit-ladder reference */}
+        <div className="fixed bottom-3 right-3 z-40 flex flex-col items-end gap-2">
+          <button onClick={() => setShowHands(true)} title="Your species, strategies & weirdos"
+            className="px-3 py-2 rounded-full border-2 border-ink font-extrabold text-xs shadow-comic text-white"
+            style={{ background: PLAYERS[match.turn].color }}>🎴 {PLAYERS[match.turn].name}'s hand</button>
+          <button onClick={() => setShowGuide(true)} title="Recruit ladders by biome"
+            className="px-3 py-2 rounded-full border-2 border-ink bg-white font-extrabold text-xs shadow-comic">📖 Muster guide</button>
+        </div>
         <AnimatePresence>
+          {showHands && <HandPanel match={match} viewer={match.turn} onClose={() => setShowHands(false)} />}
           {showGuide && <MusterGuide onClose={() => setShowGuide(false)} />}
           {mustering && (
             <MusterScreen match={match} hex={mustering} player={match.turn}
