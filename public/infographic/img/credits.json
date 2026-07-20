@@ -1,10 +1,10 @@
 {
   "eat": {
     "file": "eat.jpg",
-    "title": "File:Cheetah chasing Thompsons gazelle crop.jpg",
-    "artist": "Profberger at English Wikipedia",
-    "license": "CC BY 2.5",
-    "source": "https://commons.wikimedia.org/wiki/File:Cheetah_chasing_Thompsons_gazelle_crop.jpg"
+    "title": "Simia ursina, Pl. XXX — Recueil d'observations de zoologie et d'anatomie comparée (1811)",
+    "artist": "Alexander von Humboldt & Aimé Bonpland; plate by N. Huet fils (1807), engr. Bouquet",
+    "license": "Public domain",
+    "source": "https://gallica.bnf.fr/ark:/12148/bpt6k10405675/f443"
   },
   "fk": {
     "file": "fk.jpg",
