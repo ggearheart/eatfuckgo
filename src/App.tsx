@@ -175,8 +175,25 @@ export default function App() {
         A duel of evolutionary strategies across the biomes of a single mountain — after Humboldt's <i>Naturgemälde</i>. Contest niches, win clashes, and hold your ground as the climate shifts.
       </p>
 
+      {/* founders — portraits of Humboldt & Bonpland (public domain) */}
+      <div className="mt-6 flex flex-col items-center">
+        <div className="flex items-end justify-center gap-5">
+          {[
+            { img: 'humboldt', name: 'Alexander von Humboldt', pos: 'center 14%' },
+            { img: 'bonpland', name: 'Aimé Bonpland', pos: 'center 22%' },
+          ].map((p) => (
+            <figure key={p.img} className="text-center">
+              <img src={`${import.meta.env.BASE_URL}img/portraits/${p.img}.jpg`} alt={p.name} loading="lazy"
+                className="w-24 h-28 object-cover rounded-lg border-2 border-ink shadow-comic" style={{ objectPosition: p.pos, filter: 'sepia(0.22)' }} />
+              <figcaption className="text-[10px] font-bold mt-1 leading-tight max-w-[6rem]">{p.name}</figcaption>
+            </figure>
+          ))}
+        </div>
+        <div className="text-[10px] text-neutral-500 italic mt-1.5">in the spirit of the 1799–1804 American expedition · portraits public domain</div>
+      </div>
+
       {/* player setup */}
-      <div className="mt-7 w-full max-w-md bg-white/70 rounded-2xl border-2 border-ink p-4 shadow-comic">
+      <div className="mt-6 w-full max-w-md bg-white/70 rounded-2xl border-2 border-ink p-4 shadow-comic">
         <div className="text-[11px] font-black uppercase tracking-wide text-neutral-500 mb-2 text-center">Players — name &amp; pick your strategy</div>
         <div className="flex gap-3">
           {([['p1', p1Name, setP1Name, p1Fac, setP1Fac], ['p2', p2Name, setP2Name, p2Fac, setP2Fac]] as const).map(([pid, name, setName, fac, setFac], i) => (
