@@ -29,6 +29,7 @@ export function MapBoard({ match, turn, reach, onPick }: { match: MatchState; tu
         const code = curBiome(match.states, h.id);
         const owner = match.owners[h.id];
         const canPick = contestable.has(h.id);
+        const isClash = canPick && owner != null; // enemy-held → clash; neutral → muster
         const isHome = HOME_HEXES.has(h.id);
         const atRisk = vulnerable.has(h.id);
         const b = BOARDS[code];
@@ -39,9 +40,9 @@ export function MapBoard({ match, turn, reach, onPick }: { match: MatchState; tu
           <motion.g key={h.id} style={{ cursor: canPick ? 'pointer' : 'default' }}
             onClick={() => canPick && onPick(h.id)}
             whileHover={canPick ? { scale: 1.06 } : {}} initial={false}>
-            {/* contestable pulse halo */}
+            {/* reachable pulse halo — green = muster (free claim), red = clash (enemy-held) */}
             {canPick && (
-              <motion.polygon points={hexPoints(h.x, h.y, HEX_R + 3)} fill="none" stroke={PLAYERS[turn].color} strokeWidth="2.5"
+              <motion.polygon points={hexPoints(h.x, h.y, HEX_R + 3)} fill="none" stroke={isClash ? '#c0392b' : '#2a9d4a'} strokeWidth="2.5"
                 animate={{ opacity: [0.2, 0.95, 0.2] }} transition={{ duration: 1.6, repeat: Infinity }} />
             )}
             {/* translucent fill lets the engraving show through; strong outline keeps the grid crisp */}
@@ -52,6 +53,7 @@ export function MapBoard({ match, turn, reach, onPick }: { match: MatchState; tu
             {isHome && <text x={h.x} y={h.y - 17} textAnchor="middle" fontSize="12">🏠</text>}
             {wholeBiome && <text x={h.x + 19} y={h.y - 13} textAnchor="middle" fontSize="13">👑</text>}
             {atRisk && <text x={h.x - 19} y={h.y - 13} textAnchor="middle" fontSize="11">🔥</text>}
+            {canPick && <text x={h.x} y={h.y + 24} textAnchor="middle" fontSize="12">{isClash ? '⚔️' : '🌱'}</text>}
           </motion.g>
         );
       })}

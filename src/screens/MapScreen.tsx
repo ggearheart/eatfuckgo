@@ -33,7 +33,7 @@ export function MapScreen({ match, onPick, onEnd, onHome, note, log, reach, onRo
                 <button onClick={onRoll} className="px-3 py-1 rounded-lg border-2 border-ink bg-[#ffd21a] text-ink font-black">🎲 Roll 1d6</button>
               </div>
             ) : (
-              <span>{t.dot} {t.name} rolled <span className="text-lg">{DIE[reach]}</span> — reach <b>{reach}</b> hex{reach === 1 ? '' : 'es'}. Tap a glowing hex to contest it.</span>
+              <span>{t.dot} {t.name} rolled <span className="text-lg">{DIE[reach]}</span> — reach <b>{reach}</b>. Tap <span style={{ color: '#2a9d4a' }}>🌱 green</span> to muster (free) or <span style={{ color: '#c0392b' }}>⚔️ red</span> to clash a rival's hex.</span>
             )}
           </div>
           {threat && (
@@ -48,7 +48,7 @@ export function MapScreen({ match, onPick, onEnd, onHome, note, log, reach, onRo
           )}
           <MapBoard match={match} turn={match.turn} reach={reach} onPick={onPick} />
           <p className="text-center text-[11px] text-neutral-500 mt-2">
-            Each turn, roll 1d6 to set your reach — contest any hex within that many steps of your ground. Hold every patch of a biome to control it (👑). 🔥 hexes transform as the planet warms.
+            Roll to move, then <b style={{ color: '#2a9d4a' }}>muster</b> a neutral hex (free — settle the niche, grow your collection) or <b style={{ color: '#c0392b' }}>clash</b> a rival's hex. Only clashes heat the planet. Hold every patch of a biome to control it (👑).
           </p>
         </main>
 

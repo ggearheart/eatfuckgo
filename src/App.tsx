@@ -49,20 +49,29 @@ export default function App() {
 
   // ── Humboldt match ──
   function startMatch() { setPlayerNames(p1Name, p2Name); setPlayerFactions(p1Fac, p2Fac); setMatch(freshMatch()); setResult(null); setWarmingNote(null); setReach(null); setLog([`🌱 ${PLAYERS.p1.name} (${FACTION[p1Fac].name}) vs ${PLAYERS.p2.name} (${FACTION[p2Fac].name}) — the mountain awaits.`]); setPhase('map'); }
-  function pickBiome(id: string) { setWarmingNote(null); setPending(id); }
+  // Titan-style: a neutral hex is mustered (free claim, no clash); an enemy hex is a clash.
+  function pickBiome(id: string) {
+    setWarmingNote(null);
+    if (match.owners[id] == null) muster(id);
+    else setPending(id);
+  }
+  function muster(id: string) {
+    const owners = { ...match.owners }; owners[id] = match.turn;
+    const biome = curBiome(match.states, id);
+    const newIds = speciesInBiome(biome).map((s) => s.id).filter((sid) => !match.collection[match.turn].includes(sid));
+    const entries = [`🌱 ${PLAYERS[match.turn].name} mustered into ${BOARDS[biome].name}${newIds.length ? ` (+${newIds.length} species)` : ''}.`];
+    finishTurn(owners, entries, false, { player: match.turn, species: speciesInBiome(biome).map((s) => s.id) });
+  }
   function rollMove() { setReach(1 + Math.floor(Math.random() * 6)); }
   // finish a turn: advance warming (per claim), apply migration, grow/prune collections, check victory, log
-  function finishTurn(owners: Record<string, any>, entries: string[], claimed: boolean, gain?: { player: PlayerId; species: string }, champions?: { atk: string | null; def: string | null }) {
+  function finishTurn(owners: Record<string, any>, entries: string[], claimed: boolean, grant?: { player: PlayerId; species: string[] }, champions?: { atk: string | null; def: string | null }) {
     const tick = tickWarming(match, claimed);
     const displaced = tick.changed.filter((c) => owners[c.id]).length;
     tick.changed.forEach((c) => { if (owners[c.id]) owners[c.id] = null; }); // migration teeth
     if (tick.changed.length) entries.push(`🔥 ${degLabel(tick.warming)}: ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''}` : ''}.`);
-    // collection: winner absorbs the defeated dominant species
+    // collection grows: settling a biome adds its species; a clash win absorbs the defeated one
     const collection = { p1: [...match.collection.p1], p2: [...match.collection.p2] };
-    if (gain && !collection[gain.player].includes(gain.species)) {
-      collection[gain.player].push(gain.species);
-      entries.push(`🧬 ${PLAYERS[gain.player].name} absorbed ${SPECIES_BY_ID[gain.species]?.emoji} ${SPECIES_BY_ID[gain.species]?.name} into their collection.`);
-    }
+    if (grant) grant.species.forEach((id) => { if (id && !collection[grant.player].includes(id)) collection[grant.player].push(id); });
     // extinction: a biome zeroed by warming takes its species out of the game for everyone
     const extinct = ALL_BIOMES.filter((c) => hexesOfBiome(c, match.states).length > 0 && hexesOfBiome(c, tick.states).length === 0);
     if (extinct.length) {
@@ -107,7 +116,8 @@ export default function App() {
   function concedeContest() {
     const hex = pending!; setPending(null);
     const owners = { ...match.owners }; owners[hex] = match.turn;
-    finishTurn(owners, [`🏳️ ${PLAYERS[otherPlayer(match.turn)].name} conceded ${BOARDS[curBiome(match.states, hex)].name} to ${PLAYERS[match.turn].name}.`], true);
+    const biome = curBiome(match.states, hex);
+    finishTurn(owners, [`🏳️ ${PLAYERS[otherPlayer(match.turn)].name} conceded ${BOARDS[biome].name} to ${PLAYERS[match.turn].name}.`], true, { player: match.turn, species: speciesInBiome(biome).map((s) => s.id) });
     setPhase('map');
   }
   function claimAndReturn() {
@@ -116,13 +126,14 @@ export default function App() {
     const atkName = PLAYERS[atk].name, defName = PLAYERS[def].name;
     const biomeNm = activeHex ? BOARDS[curBiome(match.states, activeHex)].name : 'the field';
     const entries: string[] = [];
-    let gain: { player: PlayerId; species: string } | undefined;
+    let grant: { player: PlayerId; species: string[] } | undefined;
+    const absorb = (p: PlayerId, sp: string | null) => { if (sp) { grant = { player: p, species: [sp] }; entries.push(`🧬 ${PLAYERS[p].name} absorbed ${SPECIES_BY_ID[sp]?.emoji} ${SPECIES_BY_ID[sp]?.name}.`); } };
     if (state?.winner && activeHex) {
-      if (state.winner === 'atk') { owners[activeHex] = atk; entries.push(`⚔️ ${atkName} won a ${biomeNm} hex.`); if (state.species.def) gain = { player: atk, species: state.species.def }; }
-      else if (state.winner === 'def') { owners[activeHex] = def; entries.push(`🛡️ ${defName} held ${biomeNm}.`); if (state.species.atk) gain = { player: def, species: state.species.atk }; }
+      if (state.winner === 'atk') { owners[activeHex] = atk; entries.push(`⚔️ ${atkName} won ${biomeNm}.`); absorb(atk, state.species.def); }
+      else if (state.winner === 'def') { owners[activeHex] = def; entries.push(`🛡️ ${defName} held ${biomeNm}.`); absorb(def, state.species.atk); }
       else entries.push(`🤝 Stalemate at ${biomeNm}.`);
     }
-    finishTurn(owners, entries, state?.winner === 'atk', gain, { atk: state?.lead.atk ?? null, def: state?.lead.def ?? null });
+    finishTurn(owners, entries, state?.winner === 'atk', grant, { atk: state?.lead.atk ?? null, def: state?.lead.def ?? null });
     setActiveHex(null); setPhase('map');
   }
   function endMatch() {
