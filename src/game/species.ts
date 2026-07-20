@@ -109,9 +109,9 @@ export const strategyCard = (id: string): any => STRAT[id]; // full strategy car
 // unlocked only if it's the biome's base rung OR you already own a lower-tier
 // species of that biome — your hand climbs each biome's ladder.
 export interface RecruitOption { species: Species; tier: number; owned: boolean; unlocked: boolean; }
-export function recruitOptions(ownedIds: string[], biome: string, fac: 'eat' | 'fk'): RecruitOption[] {
+export function recruitOptions(ownedIds: string[], biome: string, category: 'eat' | 'fk'): RecruitOption[] {
   const owned = new Set(ownedIds);
-  const list = speciesInBiome(biome).filter((s) => speciesCat(s) === fac);
+  const list = speciesInBiome(biome).filter((s) => speciesCat(s) === category);
   const tierOf = (s: Species) => (STRAT[s.strategy]?.t ?? 0);
   const minTier = list.length ? Math.min(...list.map(tierOf)) : 0;
   const ownedTiers = list.filter((s) => owned.has(s.id)).map(tierOf);
@@ -121,4 +121,17 @@ export function recruitOptions(ownedIds: string[], biome: string, fac: 'eat' | '
       return { species: s, tier, owned: owned.has(s.id), unlocked: tier === minTier || ownedTiers.some((t) => t < tier) };
     })
     .sort((a, b) => a.tier - b.tier);
+}
+
+// The player's strategy arsenal (the "muster map"): the strategies they hold,
+// grouped by category and ordered by tier, with the species carrying each.
+export interface PortfolioEntry { strategy: string; name: string; art: string; tier: number; species: Species[]; }
+export function strategyPortfolio(ownedIds: string[]): { eat: PortfolioEntry[]; fk: PortfolioEntry[] } {
+  const bySid: Record<string, Species[]> = {};
+  ownedIds.forEach((id) => { const sp = SPECIES_BY_ID[id]; if (sp) (bySid[sp.strategy] ||= []).push(sp); });
+  const entries = Object.keys(bySid).map((strat) => ({
+    strategy: strat, name: STRAT[strat]?.n ?? strat, art: STRAT[strat]?.art ?? '❓', tier: STRAT[strat]?.t ?? 0, species: bySid[strat],
+  }));
+  const grp = (cat: 'eat' | 'fk') => entries.filter((e) => stratCat(e.strategy) === cat).sort((a, b) => a.tier - b.tier);
+  return { eat: grp('eat'), fk: grp('fk') };
 }
