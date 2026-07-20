@@ -70,7 +70,9 @@ export function hexPoints(cx: number, cy: number, r = R): string {
 
 // Home bases: opposite marine corners. Both players start in the ocean and
 // climb the mountain, meeting in the tropical lowlands.
-export const HOME: Record<PlayerId, string[]> = { p1: ['O0'], p2: ['O3'] };
+// Start hexes, assigned in order to the 2–4 players: bottom-left & bottom-right
+// ocean corners, then the summit vent, then the central cave — spread apart.
+export const START_HEXES = ['O0', 'O3', 'V0', 'C0'];
 
 // Muted, Naturgemälde-engraving palette — distinct but board-like, not neon.
 export const BIOME_COLORS: Record<string, string> = {

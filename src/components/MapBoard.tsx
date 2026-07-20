@@ -1,13 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { motion } from 'framer-motion';
 import { BOARDS } from '../engine/data';
-import { HEXES, hexPoints, HEX_R, HOME, BIOME_COLORS, reachableFor, biomeOwner, curBiome, vulnerableHexes } from '../game/board';
+import { HEXES, hexPoints, HEX_R, BIOME_COLORS, reachableFor, biomeOwner, curBiome, vulnerableHexes } from '../game/board';
 import { PLAYERS, PlayerId, MatchState } from '../game/humboldt';
-
-const HOME_HEXES = new Set([...HOME.p1, ...HOME.p2]);
 
 export function MapBoard({ match, turn, reach, onPick }: { match: MatchState; turn: PlayerId; reach: number | null; onPick: (id: string) => void }) {
   const contestable = reachableFor(match.owners, turn, reach ?? 0);
+  const homeSet = new Set(match.homes);
   const vulnerable = vulnerableHexes(match);
   const controlled: Record<string, PlayerId | null> = {};
   new Set(Object.values(match.states)).forEach((c) => (controlled[c] = biomeOwner(match.owners, c, match.states)));
@@ -30,7 +29,7 @@ export function MapBoard({ match, turn, reach, onPick }: { match: MatchState; tu
         const owner = match.owners[h.id];
         const canPick = contestable.has(h.id);
         const isClash = canPick && owner != null; // enemy-held → clash; neutral → muster
-        const isHome = HOME_HEXES.has(h.id);
+        const isHome = homeSet.has(h.id);
         const atRisk = vulnerable.has(h.id);
         const b = BOARDS[code];
         const fill = BIOME_COLORS[code] || '#c9bfa6';

@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BOARDS, BIOME_AFFINITY } from '../engine/data';
 import { curBiome } from '../game/board';
-import { PLAYERS, otherPlayer, FACTION, Faction, MatchState } from '../game/humboldt';
+import { PLAYERS, FACTION, Faction, PlayerId, MatchState } from '../game/humboldt';
 import { speciesInBiome, speciesCat, stratName, Species } from '../game/species';
 
 export interface ContestResult {
@@ -51,7 +51,7 @@ export function ContestSetup({ match, hex, onLaunch, onConcede, onCancel }: {
 }) {
   const biome = curBiome(match.states, hex);
   const b = BOARDS[biome];
-  const atk = match.turn, def = otherPlayer(match.turn);
+  const atk = match.turn, def = (match.owners[hex] ?? match.players.find((p) => p !== atk)!) as PlayerId; // defender = the hex's owner
   const aff = BIOME_AFFINITY[biome];
 
   // a player can only field species whose strategy is in their collection

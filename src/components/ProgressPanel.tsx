@@ -84,13 +84,13 @@ export function ProgressPanel({ match, log, onEnd }: { match: MatchState; log: s
             );
           })}
         </div>
-        <div className="text-[11px] font-bold flex justify-between mt-1.5 pt-1.5 border-t border-neutral-200">
-          <span style={{ color: PLAYERS.p1.color }}>🟧 {heldBy(match, 'p1')} hex · {biomesControlledBy(match, 'p1')} 👑</span>
-          <span style={{ color: PLAYERS.p2.color }}>🟪 {heldBy(match, 'p2')} hex · {biomesControlledBy(match, 'p2')} 👑</span>
-        </div>
-        <div className="text-[10px] flex justify-between text-neutral-500 mt-0.5">
-          <span>🧬 {match.collection.p1.length} species</span>
-          <span>{match.collection.p2.length} species 🧬</span>
+        <div className="mt-1.5 pt-1.5 border-t border-neutral-200 space-y-0.5">
+          {match.players.map((p) => (
+            <div key={p} className="text-[11px] font-bold flex justify-between items-center" style={{ color: PLAYERS[p].color }}>
+              <span className="truncate">{PLAYERS[p].dot} {PLAYERS[p].name}</span>
+              <span className="whitespace-nowrap tabular-nums">{biomesControlledBy(match, p)}👑 · {heldBy(match, p)}h · {match.collection[p].length}🧬</span>
+            </div>
+          ))}
         </div>
       </div>
 

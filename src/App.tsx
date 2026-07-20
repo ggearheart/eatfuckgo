@@ -5,8 +5,8 @@ import { useBattle } from './store';
 import { BattleScreen } from './screens/BattleScreen';
 import { MapScreen } from './screens/MapScreen';
 import { EAT, FK, BOARDS } from './engine/data';
-import { freshMatch, otherPlayer, heldBy, biomesControlledBy, matchWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, FACTION, PLAYERS, ALL_BIOMES, ADAPT_CAP, MatchState, Faction, PlayerId } from './game/humboldt';
-import { curBiome, hexesOfBiome, tickWarming, degLabel } from './game/board';
+import { freshMatch, nextPlayer, heldBy, biomesControlledBy, matchWinner, pluralityWinner, biomeWinThreshold, livingBiomes, setPlayerNames, setPlayerFactions, FACTION, PLAYERS, ALL_PLAYERS, ALL_BIOMES, ADAPT_CAP, MatchState, Faction, PlayerId } from './game/humboldt';
+import { curBiome, hexesOfBiome, tickWarming, degLabel, MAX_C } from './game/board';
 import { speciesInBiome, SPECIES_BY_ID } from './game/species';
 import { ContestSetup, ContestResult } from './components/ContestSetup';
 
@@ -28,10 +28,9 @@ export default function App() {
   const [activeHex, setActiveHex] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [warmingNote, setWarmingNote] = useState<string | null>(null);
-  const [p1Name, setP1Name] = useState('');
-  const [p2Name, setP2Name] = useState('');
-  const [p1Fac, setP1Fac] = useState<Faction>('eat');
-  const [p2Fac, setP2Fac] = useState<Faction>('fk');
+  const [playerCount, setPlayerCount] = useState(2);
+  const [names, setNames] = useState<string[]>(['', '', '', '']);
+  const [facs, setFacs] = useState<Faction[]>(['eat', 'fk', 'eat', 'fk']);
   const [log, setLog] = useState<string[]>([]);
   const [reach, setReach] = useState<number | null>(null); // this turn's 1d6 movement roll
 
@@ -48,8 +47,14 @@ export default function App() {
   }
 
   // ── Humboldt match ──
-  function startMatch() { setPlayerNames(p1Name, p2Name); setPlayerFactions(p1Fac, p2Fac); setMatch(freshMatch()); setResult(null); setWarmingNote(null); setReach(null); setLog([`🌱 ${PLAYERS.p1.name} (${FACTION[p1Fac].name}) vs ${PLAYERS.p2.name} (${FACTION[p2Fac].name}) — the mountain awaits.`]); setPhase('map'); }
-  // Titan-style: a neutral hex is mustered (free claim, no clash); an enemy hex is a clash.
+  function startMatch() {
+    const players = ALL_PLAYERS.slice(0, playerCount);
+    setPlayerNames(names); setPlayerFactions(facs);
+    setMatch(freshMatch(players)); setResult(null); setWarmingNote(null); setReach(null);
+    setLog([`🌱 ${players.map((p) => `${PLAYERS[p].dot} ${PLAYERS[p].name}`).join(' · ')} — the mountain awaits.`]);
+    setPhase('map');
+  }
+  // Titan-style: a neutral hex is mustered (free claim, no clash); a rival's hex is a clash.
   function pickBiome(id: string) {
     setWarmingNote(null);
     if (match.owners[id] == null) muster(id);
@@ -63,47 +68,53 @@ export default function App() {
     finishTurn(owners, entries, false, { player: match.turn, species: speciesInBiome(biome).map((s) => s.id) });
   }
   function rollMove() { setReach(1 + Math.floor(Math.random() * 6)); }
-  // finish a turn: advance warming (per claim), apply migration, grow/prune collections, check victory, log
-  function finishTurn(owners: Record<string, any>, entries: string[], claimed: boolean, grant?: { player: PlayerId; species: string[] }, champions?: { atk: string | null; def: string | null }) {
+  function passTurn() { finishTurn({ ...match.owners }, [`⤳ ${PLAYERS[match.turn].name} has no move — passes.`], false); }
+  // finish a turn: warming (per claim), migration, grow/prune collections, adaptation, victory, log
+  function finishTurn(owners: Record<string, any>, entries: string[], claimed: boolean, grant?: { player: PlayerId; species: string[] }, combat?: { atkStrat: string | null; defStrat: string | null; defender: PlayerId }) {
     const tick = tickWarming(match, claimed);
     const displaced = tick.changed.filter((c) => owners[c.id]).length;
     tick.changed.forEach((c) => { if (owners[c.id]) owners[c.id] = null; }); // migration teeth
     if (tick.changed.length) entries.push(`🔥 ${degLabel(tick.warming)}: ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''}` : ''}.`);
-    // collection grows: settling a biome adds its species; a clash win absorbs the defeated one
-    const collection = { p1: [...match.collection.p1], p2: [...match.collection.p2] };
+    // collections: settling adds a biome's species; a clash win absorbs the defeated one
+    const collection = {} as Record<PlayerId, string[]>;
+    match.players.forEach((p) => { collection[p] = [...match.collection[p]]; });
     if (grant) grant.species.forEach((id) => { if (id && !collection[grant.player].includes(id)) collection[grant.player].push(id); });
-    // extinction: a biome zeroed by warming takes its species out of the game for everyone
     const extinct = ALL_BIOMES.filter((c) => hexesOfBiome(c, match.states).length > 0 && hexesOfBiome(c, tick.states).length === 0);
     if (extinct.length) {
       const dead = new Set(extinct.flatMap((c) => speciesInBiome(c).map((s) => s.id)));
-      (['p1', 'p2'] as PlayerId[]).forEach((p) => { collection[p] = collection[p].filter((id) => !dead.has(id)); });
+      match.players.forEach((p) => { collection[p] = collection[p].filter((id) => !dead.has(id)); });
       entries.push(`🦴 ${extinct.map((c) => BOARDS[c].name).join(', ')} vanished — ${dead.size} species went extinct.`);
     }
-    // Red Queen adaptation: champions used this turn get more adapted; the attacker's rested strategies recover
-    const adapt = { p1: { ...match.adapt.p1 }, p2: { ...match.adapt.p2 } };
-    const atkP = match.turn, defP = otherPlayer(match.turn);
-    Object.keys(adapt[atkP]).forEach((sid) => { if (sid !== champions?.atk) adapt[atkP][sid] = Math.max(0, adapt[atkP][sid] - 1); });
-    if (champions?.atk) adapt[atkP][champions.atk] = Math.min(ADAPT_CAP, (adapt[atkP][champions.atk] || 0) + 1);
-    if (champions?.def) adapt[defP][champions.def] = Math.min(ADAPT_CAP, (adapt[defP][champions.def] || 0) + 1);
-    const next = { ...match, owners, states: tick.states, warming: tick.warming, turns: match.turns + 1, claims: tick.claims, turn: otherPlayer(match.turn), collection, adapt };
+    // Red Queen adaptation
+    const adapt = {} as Record<PlayerId, Record<string, number>>;
+    match.players.forEach((p) => { adapt[p] = { ...match.adapt[p] }; });
+    const atkP = match.turn;
+    Object.keys(adapt[atkP]).forEach((sid) => { if (sid !== combat?.atkStrat) adapt[atkP][sid] = Math.max(0, adapt[atkP][sid] - 1); });
+    if (combat?.atkStrat) adapt[atkP][combat.atkStrat] = Math.min(ADAPT_CAP, (adapt[atkP][combat.atkStrat] || 0) + 1);
+    if (combat?.defStrat && combat.defender) adapt[combat.defender][combat.defStrat] = Math.min(ADAPT_CAP, (adapt[combat.defender][combat.defStrat] || 0) + 1);
+    const next = { ...match, owners, states: tick.states, warming: tick.warming, turns: match.turns + 1, claims: tick.claims, turn: nextPlayer(match.players, match.turn), collection, adapt };
     setMatch(next);
-    setReach(null); // next player rolls to move
+    setReach(null);
     setWarmingNote(tick.changed.length
       ? `🔥 The planet warmed to ${degLabel(tick.warming)} — ${tick.changed.length} hex${tick.changed.length > 1 ? 'es' : ''} transformed${displaced ? `, displacing ${displaced} population${displaced > 1 ? 's' : ''} (now neutral)` : ''}.`
       : null);
+    // victory: early majority instant win, else plurality once the planet maxes out
     const won = matchWinner(next);
     if (won) {
-      const name = PLAYERS[won].name, n = biomesControlledBy(next, won), need = biomeWinThreshold(next);
-      entries.push(`🏆 ${name} controls ${n} of ${livingBiomes(next).length} biomes — victory!`);
-      setResult(`🏆 ${name} wins — controlling ${n} of ${livingBiomes(next).length} living biomes (majority needed: ${need}).`);
+      const n = biomesControlledBy(next, won);
+      entries.push(`🏆 ${PLAYERS[won].name} controls a majority (${n} biomes) — victory!`);
+      setResult(`🏆 ${PLAYERS[won].name} wins — a majority of the ${livingBiomes(next).length} living biomes (${n}).`);
+    } else if (next.warming >= MAX_C) {
+      const w = pluralityWinner(next), n = biomesControlledBy(next, w);
+      entries.push(`🏆 Planet maxed at ${degLabel(next.warming)} — ${PLAYERS[w].name} leads with ${n} biome${n === 1 ? '' : 's'}!`);
+      setResult(`🏆 The planet reached ${degLabel(next.warming)}. ${PLAYERS[w].name} wins with the most biomes (${n}).`);
     }
     if (entries.length) setLog((l) => [...l, ...entries]);
   }
 
-  // launch the clash from the pre-clash species setup
   function launchContest(r: ContestResult) {
     const hex = pending!; setPending(null); setActiveHex(hex);
-    const atk = match.turn, def = otherPlayer(match.turn);
+    const atk = match.turn, def = match.owners[hex] as PlayerId;
     dispatch({ t: 'new', setup: {
       fac: { atk: r.atkMode, def: r.defMode }, terrain: curBiome(match.states, hex),
       atkIds: r.atkIds, defIds: r.defIds,
@@ -112,17 +123,18 @@ export default function App() {
     } });
     setPhase('battle');
   }
-  // defender conceded — attacker takes the hex without a clash
   function concedeContest() {
     const hex = pending!; setPending(null);
+    const owner = match.owners[hex] as PlayerId;
     const owners = { ...match.owners }; owners[hex] = match.turn;
     const biome = curBiome(match.states, hex);
-    finishTurn(owners, [`🏳️ ${PLAYERS[otherPlayer(match.turn)].name} conceded ${BOARDS[biome].name} to ${PLAYERS[match.turn].name}.`], true, { player: match.turn, species: speciesInBiome(biome).map((s) => s.id) });
+    finishTurn(owners, [`🏳️ ${PLAYERS[owner].name} conceded ${BOARDS[biome].name} to ${PLAYERS[match.turn].name}.`], true, { player: match.turn, species: speciesInBiome(biome).map((s) => s.id) });
     setPhase('map');
   }
   function claimAndReturn() {
     const owners = { ...match.owners };
-    const atk = match.turn, def = otherPlayer(match.turn);
+    const atk = match.turn;
+    const def = (activeHex ? match.owners[activeHex] : match.players.find((p) => p !== atk)) as PlayerId;
     const atkName = PLAYERS[atk].name, defName = PLAYERS[def].name;
     const biomeNm = activeHex ? BOARDS[curBiome(match.states, activeHex)].name : 'the field';
     const entries: string[] = [];
@@ -133,16 +145,12 @@ export default function App() {
       else if (state.winner === 'def') { owners[activeHex] = def; entries.push(`🛡️ ${defName} held ${biomeNm}.`); absorb(def, state.species.atk); }
       else entries.push(`🤝 Stalemate at ${biomeNm}.`);
     }
-    finishTurn(owners, entries, state?.winner === 'atk', grant, { atk: state?.lead.atk ?? null, def: state?.lead.def ?? null });
+    finishTurn(owners, entries, state?.winner === 'atk', grant, { atkStrat: state?.lead.atk ?? null, defStrat: state?.lead.def ?? null, defender: def });
     setActiveHex(null); setPhase('map');
   }
   function endMatch() {
-    const p1 = biomesControlledBy(match, 'p1'), p2 = biomesControlledBy(match, 'p2');
-    const h1 = heldBy(match, 'p1'), h2 = heldBy(match, 'p2');
-    const lead = p1 === p2
-      ? `Even at ${p1} biome${p1 === 1 ? '' : 's'} each — ${h1 > h2 ? PLAYERS.p1.name : h2 > h1 ? PLAYERS.p2.name : 'nobody'} leads on hexes (${h1}–${h2}).`
-      : `${p1 > p2 ? PLAYERS.p1.name : PLAYERS.p2.name} leads, controlling ${Math.max(p1, p2)} full biome${Math.max(p1, p2) === 1 ? '' : 's'} to ${Math.min(p1, p2)}.`;
-    setResult(`🌡️ The planet reached ${degLabel(match.warming)}. ${lead}`);
+    const w = pluralityWinner(match), n = biomesControlledBy(match, w);
+    setResult(`🌡️ Called at ${degLabel(match.warming)}. ${PLAYERS[w].name} leads with ${n} biome${n === 1 ? '' : 's'} (${heldBy(match, w)} hexes).`);
   }
 
   if (phase === 'battle' && state) {
@@ -151,7 +159,7 @@ export default function App() {
         mapMode={activeHex != null}
         biomeName={activeHex ? BOARDS[curBiome(match.states, activeHex)].name : undefined}
         attackerName={activeHex ? PLAYERS[match.turn].name : undefined}
-        defenderName={activeHex ? PLAYERS[otherPlayer(match.turn)].name : undefined}
+        defenderName={activeHex && match.owners[activeHex] ? PLAYERS[match.owners[activeHex]!].name : undefined}
         onClaim={activeHex ? claimAndReturn : undefined}
         onExit={() => (activeHex ? setPhase('map') : location.reload())}
         onNewRandom={() => skirmish(undefined)} />
@@ -161,7 +169,7 @@ export default function App() {
   if (phase === 'map') {
     return (
       <>
-        <MapScreen match={match} onPick={pickBiome} onEnd={endMatch} onHome={() => setPhase('home')} note={warmingNote} log={log} reach={reach} onRoll={rollMove} />
+        <MapScreen match={match} onPick={pickBiome} onEnd={endMatch} onHome={() => setPhase('home')} note={warmingNote} log={log} reach={reach} onRoll={rollMove} onPass={passTurn} />
         <AnimatePresence>
           {pending && (
             <ContestSetup match={match} hex={pending}
@@ -213,18 +221,24 @@ export default function App() {
 
       {/* player setup */}
       <div className="mt-6 w-full max-w-md bg-white/70 rounded-2xl border-2 border-ink p-4 shadow-comic">
-        <div className="text-[11px] font-black uppercase tracking-wide text-neutral-500 mb-2 text-center">Players — name &amp; pick your strategy</div>
-        <div className="flex gap-3">
-          {([['p1', p1Name, setP1Name, p1Fac, setP1Fac], ['p2', p2Name, setP2Name, p2Fac, setP2Fac]] as const).map(([pid, name, setName, fac, setFac], i) => (
-            <div key={pid} className="flex-1">
-              <span className="text-xs font-bold" style={{ color: PLAYERS[pid].color }}>{PLAYERS[pid].dot} Side {i + 1}</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={`Player ${i + 1}`} maxLength={16}
-                className="mt-1 w-full px-3 py-2 rounded-lg border-2 border-ink text-sm font-bold outline-none focus:ring-2" style={{ ['--tw-ring-color' as any]: PLAYERS[pid].color }} />
-              <div className="mt-1.5 flex gap-1">
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <span className="text-[11px] font-black uppercase tracking-wide text-neutral-500">How many players?</span>
+          {[2, 3, 4].map((n) => (
+            <button key={n} onClick={() => setPlayerCount(n)} className="w-8 h-8 rounded-lg border-2 font-black text-sm"
+              style={playerCount === n ? { borderColor: '#1a0e04', background: '#1a0e04', color: '#fff' } : { borderColor: '#d4d4d4', color: '#999', background: '#fff' }}>{n}</button>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {ALL_PLAYERS.slice(0, playerCount).map((pid, i) => (
+            <div key={pid} className="rounded-lg border-2 p-2" style={{ borderColor: PLAYERS[pid].color }}>
+              <span className="text-[11px] font-bold" style={{ color: PLAYERS[pid].color }}>{PLAYERS[pid].dot} Player {i + 1}</span>
+              <input value={names[i]} onChange={(e) => setNames(names.map((x, j) => (j === i ? e.target.value : x)))} placeholder={`Player ${i + 1}`} maxLength={14}
+                className="mt-1 w-full px-2 py-1.5 rounded-lg border-2 border-ink text-sm font-bold outline-none" />
+              <div className="mt-1 flex gap-1">
                 {(['eat', 'fk'] as Faction[]).map((f) => (
-                  <button key={f} onClick={() => setFac(f)}
-                    className="flex-1 text-[11px] font-extrabold py-1 rounded-lg border-2 transition-colors"
-                    style={fac === f
+                  <button key={f} onClick={() => setFacs(facs.map((x, j) => (j === i ? f : x)))}
+                    className="flex-1 text-[10px] font-extrabold py-1 rounded border-2 transition-colors"
+                    style={facs[i] === f
                       ? { borderColor: '#1a0e04', background: f === 'eat' ? '#c4561e' : '#7b4fa0', color: '#fff' }
                       : { borderColor: '#d4d4d4', color: '#9ca3af', background: '#fff' }}>
                     {FACTION[f].icon} {FACTION[f].name}
@@ -234,14 +248,13 @@ export default function App() {
             </div>
           ))}
         </div>
-        {p1Fac === p2Fac && <div className="text-[10px] text-center text-neutral-500 mt-2">Mirror match — both playing {FACTION[p1Fac].name}.</div>}
       </div>
 
       {/* game modes */}
       <div className="mt-4 w-full max-w-md grid gap-3">
         <button onClick={startMatch} className="text-left rounded-2xl border-2 border-ink bg-ink text-white p-4 shadow-comic hover:translate-y-[-1px] transition-transform">
           <div className="font-extrabold text-lg">🎭 Pass &amp; Play</div>
-          <div className="text-xs opacity-80">Two players, one device — take turns claiming biomes across the warming board.</div>
+          <div className="text-xs opacity-80">2–4 players, one device — muster across the mountain and clash where frontiers meet.</div>
         </button>
 
         <button disabled className="text-left rounded-2xl border-2 border-dashed border-neutral-300 bg-white/60 text-neutral-500 p-4 cursor-not-allowed relative">

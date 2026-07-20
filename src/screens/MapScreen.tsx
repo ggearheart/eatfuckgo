@@ -4,12 +4,14 @@ import { MapBoard } from '../components/MapBoard';
 import { ZonePanel } from '../components/ZonePanel';
 import { ProgressPanel } from '../components/ProgressPanel';
 import { PLAYERS, matchThreat, MatchState } from '../game/humboldt';
+import { reachableFor } from '../game/board';
 
 const DIE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-export function MapScreen({ match, onPick, onEnd, onHome, note, log, reach, onRoll }: {
-  match: MatchState; onPick: (code: string) => void; onEnd: () => void; onHome: () => void; note?: string | null; log: string[]; reach: number | null; onRoll: () => void;
+export function MapScreen({ match, onPick, onEnd, onHome, note, log, reach, onRoll, onPass }: {
+  match: MatchState; onPick: (code: string) => void; onEnd: () => void; onHome: () => void; note?: string | null; log: string[]; reach: number | null; onRoll: () => void; onPass: () => void;
 }) {
   const t = PLAYERS[match.turn];
+  const stuck = reach != null && reachableFor(match.owners, match.turn, reach).size === 0;
   const threat = matchThreat(match);
   return (
     <div className="min-h-full p-3 max-w-[1440px] mx-auto">
@@ -32,6 +34,11 @@ export function MapScreen({ match, onPick, onEnd, onHome, note, log, reach, onRo
                 <span>{t.dot} {t.name}'s turn — roll to move:</span>
                 <button onClick={onRoll} className="px-3 py-1 rounded-lg border-2 border-ink bg-[#ffd21a] text-ink font-black">🎲 Roll 1d6</button>
               </div>
+            ) : stuck ? (
+              <span className="flex items-center justify-center gap-2 flex-wrap">
+                {t.dot} {t.name} rolled <span className="text-lg">{DIE[reach]}</span> — no reachable hexes.
+                <button onClick={onPass} className="px-3 py-1 rounded-lg border-2 border-ink bg-white font-black">⤳ Pass</button>
+              </span>
             ) : (
               <span>{t.dot} {t.name} rolled <span className="text-lg">{DIE[reach]}</span> — reach <b>{reach}</b>. Tap <span style={{ color: '#2a9d4a' }}>🌱 green</span> to muster (free) or <span style={{ color: '#c0392b' }}>⚔️ red</span> to clash a rival's hex.</span>
             )}
