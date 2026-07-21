@@ -85,6 +85,34 @@ export function MapScreen({ match, reach, selLegion, activePlayer, interactive, 
           {note && <div className="rounded-lg border-2 border-red-400 bg-red-50 text-red-800 text-xs font-bold px-3 py-2 mb-2 text-center">{note}</div>}
 
           <MapBoard match={match} selLegion={selLegion} reach={reach} onPick={onPick} />
+
+          {/* always-visible legion panel for the active player */}
+          <div className="mt-2 rounded-xl border-2 border-ink bg-white/70 p-2">
+            <div className="flex items-center gap-1 mb-1">
+              <span className="text-[11px] font-black uppercase tracking-wide text-neutral-500">🎆 {t.name}'s legions</span>
+              {interactive && reach != null && <span className="text-[10px] text-neutral-400">— tap a legion to select, then a hex to move</span>}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {myLegions.map((l) => {
+                const code = curBiome(match.states, l.hex);
+                const on = selLegion === l.id;
+                return (
+                  <button key={l.id} onClick={() => onPick(l.hex)}
+                    className="text-left rounded-lg border-2 p-1.5 flex items-center gap-1.5 min-w-[132px]"
+                    style={on ? { borderColor: t.color, background: '#fffdf5', boxShadow: `0 0 0 2px ${t.color}` } : { borderColor: '#e2d8c6', background: '#fff' }}>
+                    <BurstBadge color={t.color} kind={l.emblem} size={20} />
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-black">Legion {l.n} · {FACTION[l.team].icon} · {l.species.length}/{STACK_CAP}{l.moved ? ' 💤' : ''}</div>
+                      <div className="text-sm leading-none">{l.species.map((id) => SPECIES_BY_ID[id]?.emoji).join('') || '—'}</div>
+                      <div className="text-[9px] text-neutral-400 truncate">{BOARDS[code].icon} {BOARDS[code].name}</div>
+                    </div>
+                  </button>
+                );
+              })}
+              {!myLegions.length && <div className="text-[11px] text-neutral-400 italic py-2">No legions left.</div>}
+            </div>
+          </div>
+
           <p className="text-center text-[11px] text-neutral-500 mt-2">
             Move legions to <b style={{ color: '#2a9d4a' }}>settle</b> and recruit, <b style={{ color: '#c0392b' }}>clash</b> where they meet, and <b>split</b> to spread. Last player with a legion standing wins.
           </p>
