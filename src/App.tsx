@@ -40,6 +40,7 @@ export default function App() {
   const [mustering, setMustering] = useState<{ legionId: string; hex: string } | null>(null); // legion recruiting after a move
   const [selLegion, setSelLegion] = useState<string | null>(null); // legion selected to move
   const [turnStart, setTurnStart] = useState<MatchState | null>(null); // snapshot for "reset moves"
+  const [turnLogLen, setTurnLogLen] = useState(0); // log length at turn start (to trim on reset)
   const [confirmEnd, setConfirmEnd] = useState(false); // end-turn confirmation
   const [splitting, setSplitting] = useState<string | null>(null); // legion id being split (opens popup)
   const [arranged, setArranged] = useState<Set<PlayerId>>(new Set()); // players who've arranged their opening legions
@@ -102,9 +103,9 @@ export default function App() {
     return opts.length ? opts.sort((a, b) => b.tier - a.tier)[0].species.id : null;
   }
 
-  function rollMove() { if (reach == null) { setTurnStart(match); setReach(1 + Math.floor(Math.random() * 6)); } }
+  function rollMove() { if (reach == null) { setTurnStart(match); setTurnLogLen(log.length); setReach(1 + Math.floor(Math.random() * 6)); } }
   // undo every move/recruit/clash made this turn, back to the roll
-  function resetMoves() { if (turnStart) { setMatch(turnStart); setSelLegion(null); setConfirmEnd(false); } }
+  function resetMoves() { if (turnStart) { setMatch(turnStart); setLog((l) => l.slice(0, turnLogLen)); setSelLegion(null); setConfirmEnd(false); } }
 
   // click a hex: select your legion there, or (with one selected) move/act onto it
   function pickHex(hexId: string) {
