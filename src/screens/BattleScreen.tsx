@@ -164,8 +164,9 @@ export function BattleScreen({ state: s, dispatch, onNewRandom, onExit, mapMode,
 
         {/* Options */}
         <div className="flex gap-2 justify-center flex-wrap mb-3">
-          {s.round > 2 && !s.weirdoUsed && !s.winner && <WeirdoBtn s={s} dispatch={dispatch} />}
-          {s.round > 4 && !s.musterUsed && s.life.def > 0 && !s.winner && <MusterBtn s={s} dispatch={dispatch} />}
+          {/* weirdo is the ATTACKER's summon, muster the DEFENDER's — only offer each to the human running that side */}
+          {s.round > 2 && !s.weirdoUsed && !s.winner && !aiSides?.includes('atk') && <WeirdoBtn s={s} dispatch={dispatch} />}
+          {s.round > 4 && !s.musterUsed && s.life.def > 0 && !s.winner && !aiSides?.includes('def') && <MusterBtn s={s} dispatch={dispatch} />}
           <button onClick={() => dispatch({ t: 'concede', loser: humanSide })} className="px-3.5 py-1.5 rounded-lg border-2 border-neutral-300 bg-white text-neutral-500 text-[11px] font-bold">🏳️ Concede</button>
         </div>
 

@@ -12,8 +12,9 @@ import { BurstBadge } from '../components/LegionBurst';
 const DIE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 const GM_LAB = 'G';
 
-export function MapScreen({ match, reach, selLegion, activePlayer, interactive, onPick, onRoll, onEndTurn, onSplit, onSwitchTeam, onEnd, onHome, note, log }: {
+export function MapScreen({ match, reach, selLegion, activePlayer, interactive, canReset, onReset, onPick, onRoll, onEndTurn, onSplit, onSwitchTeam, onEnd, onHome, note, log }: {
   match: MatchState; reach: number | null; selLegion: string | null; activePlayer: PlayerId; interactive: boolean;
+  canReset: boolean; onReset: () => void;
   onPick: (id: string) => void; onRoll: () => void; onEndTurn: () => void; onSplit: (id: string) => void; onSwitchTeam: (id: string) => void;
   onEnd: () => void; onHome: () => void; note?: string | null; log: string[];
 }) {
@@ -48,6 +49,9 @@ export function MapScreen({ match, reach, selLegion, activePlayer, interactive, 
               )}
               {interactive && reach == null && canSplit && sel && (
                 <button onClick={() => onSplit(sel.id)} className="px-3 py-1 rounded-lg border-2 border-ink bg-white font-black text-[11px]">✂️ Split legion {sel.n}</button>
+              )}
+              {interactive && reach != null && canReset && (
+                <button onClick={onReset} title="Undo all your moves this turn" className="px-3 py-1 rounded-lg border-2 border-ink bg-white font-black text-[11px]">↺ Reset moves</button>
               )}
               {interactive && reach != null && (
                 <button onClick={onEndTurn} className="px-3 py-1 rounded-lg border-2 border-ink bg-white font-black text-[11px]">↻ End turn</button>

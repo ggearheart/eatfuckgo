@@ -51,20 +51,20 @@ export function ProgressPanel({ match, log, onEnd }: { match: MatchState; log: s
       <div className="font-black text-sm">📊 Progress</div>
 
       {/* turn */}
-      <div className="rounded-lg border-2 px-2 py-1.5 text-xs font-bold" style={{ borderColor: t.color, background: match.turn === 'p1' ? '#fdf0ea' : '#f3ecfa' }}>
+      <div className="shrink-0 rounded-lg border-2 px-2 py-1.5 text-xs font-bold" style={{ borderColor: t.color, background: match.turn === 'p1' ? '#fdf0ea' : '#f3ecfa' }}>
         Turn <b>{match.turns}</b> · <span style={{ color: t.color }}>{t.dot} {t.name}</span> to move
       </div>
 
-      {/* warming — vertical isotherm + explorers */}
-      <ThermalScale warming={match.warming} />
+      {/* warming — vertical isotherm + explorers (never let the log squeeze it) */}
+      <div className="shrink-0"><ThermalScale warming={match.warming} /></div>
 
       {/* victory goal */}
-      <div className="rounded-lg bg-amber-50 border border-amber-300 px-2 py-1 text-[11px] font-bold text-amber-800 text-center">
+      <div className="shrink-0 rounded-lg bg-amber-50 border border-amber-300 px-2 py-1 text-[11px] font-bold text-amber-800 text-center">
         🎯 Eliminate every rival legion — last player standing wins
       </div>
 
       {/* biome control */}
-      <div>
+      <div className="shrink-0">
         <div className="text-[11px] font-black uppercase tracking-wide text-neutral-500 mb-1">🌍 Biome control</div>
         <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
           {ALL_BIOMES.map((code) => {

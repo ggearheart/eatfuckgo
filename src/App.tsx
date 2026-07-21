@@ -39,6 +39,8 @@ export default function App() {
   const [clashCtx, setClashCtx] = useState<{ hex: string; atkLegion: string; defLegion: string } | null>(null); // legions in the active battle
   const [mustering, setMustering] = useState<{ legionId: string; hex: string } | null>(null); // legion recruiting after a move
   const [selLegion, setSelLegion] = useState<string | null>(null); // legion selected to move
+  const [turnStart, setTurnStart] = useState<MatchState | null>(null); // snapshot for "reset moves"
+  const [confirmEnd, setConfirmEnd] = useState(false); // end-turn confirmation
   const [splitting, setSplitting] = useState<string | null>(null); // legion id being split (opens popup)
   const [arranged, setArranged] = useState<Set<PlayerId>>(new Set()); // players who've arranged their opening legions
   const [defenseReq, setDefenseReq] = useState<{ hex: string; atkLegion: string; owner: PlayerId } | null>(null); // human defender prompt
@@ -100,7 +102,9 @@ export default function App() {
     return opts.length ? opts.sort((a, b) => b.tier - a.tier)[0].species.id : null;
   }
 
-  function rollMove() { if (reach == null) setReach(1 + Math.floor(Math.random() * 6)); }
+  function rollMove() { if (reach == null) { setTurnStart(match); setReach(1 + Math.floor(Math.random() * 6)); } }
+  // undo every move/recruit/clash made this turn, back to the roll
+  function resetMoves() { if (turnStart) { setMatch(turnStart); setSelLegion(null); setConfirmEnd(false); } }
 
   // click a hex: select your legion there, or (with one selected) move/act onto it
   function pickHex(hexId: string) {
@@ -286,8 +290,9 @@ export default function App() {
     else if (next.warming >= MAX_C) { const w = pluralityWinner(next); entries.push(`🏆 Planet maxed at ${degLabel(next.warming)} — ${PLAYERS[w].name} leads with ${legionsOf(next, w).length} legions.`); setResult(`🏆 The planet reached ${degLabel(next.warming)}. ${PLAYERS[w].name} wins with the most legions.`); }
     if (entries.length) setLog((l) => [...l, ...entries]);
   }
-  function endTurn() {
-    setSelLegion(null);
+  function endTurn() { setConfirmEnd(true); } // ask first
+  function doEndTurn() {
+    setConfirmEnd(false); setTurnStart(null); setSelLegion(null);
     const legions: Record<string, Legion> = {};
     Object.values(match.legions).forEach((l) => { legions[l.id] = { ...l, moved: false }; });
     // advance to the next player who still has a legion
@@ -332,11 +337,11 @@ export default function App() {
 
   // the computer takes its map turn: move each legion once, then end the turn
   useEffect(() => {
-    if (phase !== 'map' || result || pending || mustering || defense || defenseReq || splitting || !aiPlayers.has(match.turn) || !arranged.has(match.turn)) return;
+    if (phase !== 'map' || result || pending || mustering || defense || defenseReq || splitting || confirmEnd || !aiPlayers.has(match.turn) || !arranged.has(match.turn)) return;
     const id = setTimeout(() => {
       if (reach == null) { rollMove(); return; }
       const mv = aiMapMove(match, match.turn, reach); // {type, hexId, legionId}
-      if (mv.type === 'pass' || !mv.legionId || !mv.hexId) { endTurn(); return; }
+      if (mv.type === 'pass' || !mv.legionId || !mv.hexId) { doEndTurn(); return; }
       const tgt = legionAt(match, mv.hexId);
       if (tgt && tgt.player !== match.turn) beginLegionClash(mv.legionId, tgt.id, mv.hexId);
       else if (match.owners[mv.hexId] && match.owners[mv.hexId] !== match.turn) requestDefense(mv.legionId, mv.hexId, match.owners[mv.hexId] as PlayerId);
@@ -344,7 +349,7 @@ export default function App() {
     }, 620);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, match, reach, pending, mustering, defense, defenseReq, splitting, arranged, result, aiPlayers]);
+  }, [phase, match, reach, pending, mustering, defense, defenseReq, splitting, confirmEnd, arranged, result, aiPlayers]);
 
   // standalone reference tab (pinned via the #guide hash)
   if (typeof location !== 'undefined' && location.hash === '#guide') return <MusterGuidePage />;
@@ -372,6 +377,7 @@ export default function App() {
     return (
       <>
         <MapScreen match={match} reach={reach} selLegion={selLegion} activePlayer={cur} interactive={isHuman && !mustArrange}
+          canReset={turnStart != null} onReset={resetMoves}
           onPick={pickHex} onRoll={rollMove} onEndTurn={endTurn} onSplit={(id) => setSplitting(id)} onSwitchTeam={switchTeam}
           onEnd={endMatch} onHome={() => setPhase('home')} note={warmingNote} log={log} />
         {/* floating utilities: your hand + the recruit-ladder reference */}
@@ -383,6 +389,19 @@ export default function App() {
             className="px-3 py-2 rounded-full border-2 border-ink bg-white font-extrabold text-xs shadow-comic">📖 Muster guide</button>
         </div>
         <AnimatePresence>
+          {confirmEnd && (
+            <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <motion.div className="bg-white rounded-2xl border-2 border-ink p-5 text-center max-w-sm w-full shadow-comic" initial={{ scale: 0.9 }} animate={{ scale: 1 }}>
+                <div className="font-black text-sm mb-1">↻ End {PLAYERS[cur].name}'s turn?</div>
+                <div className="text-[11px] text-neutral-500 mb-3">You can still reset every move you made this turn, or end and pass to the next player.</div>
+                <div className="flex gap-2 justify-center flex-wrap">
+                  {turnStart && <button onClick={resetMoves} className="px-3 py-2 rounded-xl border-2 border-ink bg-white font-bold text-xs">↺ Reset moves</button>}
+                  <button onClick={() => setConfirmEnd(false)} className="px-3 py-2 rounded-xl border-2 border-ink bg-white font-bold text-xs text-neutral-600">Keep playing</button>
+                  <button onClick={doEndTurn} className="px-4 py-2 rounded-xl border-2 border-ink text-white font-extrabold text-xs" style={{ background: PLAYERS[cur].color }}>✓ End turn</button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
           {mustArrange && <LegionArrange match={match} player={cur} onConfirm={applyArrange} />}
           {showHands && <HandPanel match={match} viewer={cur} onClose={() => setShowHands(false)} />}
           {showGuide && <MusterGuide onClose={() => setShowGuide(false)} />}
