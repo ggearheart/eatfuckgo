@@ -292,10 +292,16 @@ export default function App() {
     setMatch(next); setReach(null); setSelLegion(null); setWarmingNote(null);
     const won = matchWinner(next);
     if (won) { entries.push(`🏆 ${PLAYERS[won].name} is the last legion standing — victory!`); setResult(`🏆 ${PLAYERS[won].name} wins — all rivals eliminated.`); }
+    else if (livingPlayers(next).length === 0) { entries.push('💥 Every legion has fallen — mutual extinction.'); setResult('💥 Mutual extinction — no one is left standing. A draw.'); }
     else if (next.warming >= MAX_C) { const w = pluralityWinner(next); entries.push(`🏆 Planet maxed at ${degLabel(next.warming)} — ${PLAYERS[w].name} leads with ${legionsOf(next, w).length} legions.`); setResult(`🏆 The planet reached ${degLabel(next.warming)}. ${PLAYERS[w].name} wins with the most legions.`); }
     if (entries.length) setLog((l) => [...l, ...entries]);
   }
-  function endTurn() { setConfirmEnd(true); } // ask first
+  function endTurn() {
+    // a just-split legion must move off the shared hex before the turn can end
+    const hexes = legionsOf(match, match.turn).map((l) => l.hex);
+    if (hexes.length !== new Set(hexes).size) { setSelLegion(null); setWarmingNote('✂️ Move your newly-split legion off the shared hex before ending your turn.'); return; }
+    setConfirmEnd(true);
+  }
   function doEndTurn() {
     setConfirmEnd(false); setTurnStart(null); setSelLegion(null);
     const legions: Record<string, Legion> = {};
