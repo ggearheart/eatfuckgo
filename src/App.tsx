@@ -188,8 +188,11 @@ export default function App() {
   // clash where the defender legion was just repositioned (uses the fresh match m)
   function beginLegionClashOn(m: MatchState, atkLegionId: string, defLegionId: string, hexId: string) {
     setClashCtx({ hex: hexId, atkLegion: atkLegionId, defLegion: defLegionId });
-    if (aiPlayers.has(m.turn)) { setDefense({ hex: hexId, atk: legionContest(m.legions[atkLegionId])!, atkLegion: atkLegionId, defLegion: defLegionId }); return; }
-    setPending({ hex: hexId, atkLegion: atkLegionId, defLegion: defLegionId });
+    const atkAI = aiPlayers.has(m.legions[atkLegionId].player);
+    const defAI = aiPlayers.has(m.legions[defLegionId].player);
+    if (atkAI && defAI) { resolveAuto(atkLegionId, defLegionId, hexId, legionContest(m.legions[atkLegionId]), legionContest(m.legions[defLegionId]), m); return; }
+    if (atkAI) { setDefense({ hex: hexId, atk: legionContest(m.legions[atkLegionId])!, atkLegion: atkLegionId, defLegion: defLegionId }); return; } // AI attacks human → human defends
+    setPending({ hex: hexId, atkLegion: atkLegionId, defLegion: defLegionId }); // human attacker
   }
 
   // build the interactive battle from the two legions' chosen champions
@@ -239,19 +242,20 @@ export default function App() {
     const w = applyWarming(next, winner === 'atk'); next = w.m; entries.push(...w.notes);
     return { m: next, entries };
   }
-  // headless outcome (AI-v-AI, or a side can't field a champion)
-  function resolveAuto(atkLegionId: string, defLegionId: string, hexId: string, atkC: { mode: Faction; species: string } | null, defC: { mode: Faction; species: string } | null) {
+  // headless outcome (AI-v-AI, or a side can't field a champion). `src` is the
+  // authoritative match (may be a freshly-moved copy from reactive defense).
+  function resolveAuto(atkLegionId: string, defLegionId: string, hexId: string, atkC: { mode: Faction; species: string } | null, defC: { mode: Faction; species: string } | null, src: MatchState = match) {
     const ctx = { hex: hexId, atkLegion: atkLegionId, defLegion: defLegionId };
-    const atkL = match.legions[atkLegionId], defL = match.legions[defLegionId];
+    const atkL = src.legions[atkLegionId], defL = src.legions[defLegionId];
     let winner: 'atk' | 'def' | 'draw';
     if (!atkC) winner = 'def'; else if (!defC) winner = 'atk';
     else winner = autoResolve({
-      fac: { atk: atkC.mode, def: defC.mode }, terrain: curBiome(match.states, hexId),
+      fac: { atk: atkC.mode, def: defC.mode }, terrain: curBiome(src.states, hexId),
       atkIds: legionStrats(atkL, atkC.mode), defIds: legionStrats(defL, defC.mode),
       lead: { atk: stratOf(atkC.species)!, def: stratOf(defC.species)! }, species: { atk: atkC.species, def: defC.species },
-      adapt: { atk: match.adapt[atkL.player][stratOf(atkC.species)!] ?? 0, def: match.adapt[defL.player][stratOf(defC.species)!] ?? 0 },
+      adapt: { atk: src.adapt[atkL.player][stratOf(atkC.species)!] ?? 0, def: src.adapt[defL.player][stratOf(defC.species)!] ?? 0 },
     });
-    const { m, entries } = applyClashOutcome(match, ctx, winner, defC?.species ?? null, atkC?.species ?? null, atkC ? stratOf(atkC.species)! : null, defC ? stratOf(defC.species)! : null);
+    const { m, entries } = applyClashOutcome(src, ctx, winner, defC?.species ?? null, atkC?.species ?? null, atkC ? stratOf(atkC.species)! : null, defC ? stratOf(defC.species)! : null);
     setClashCtx(null); commit(m, entries);
   }
   // interactive battle finished → apply, stay on the same turn
